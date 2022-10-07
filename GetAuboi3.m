@@ -10,12 +10,12 @@ function r = GetAuboi3()
 %     L7 = Link('d',0.0819,'a',0,'alpha',0,'qlim',deg2rad([-360,360]), 'offset', 0);
 
     % Create the UR3 model mounted on a linear rail
-    L(1) = Link([pi     0       0       pi/2    1]); % PRISMATIC Link
-    L(2) = Link([0      0       0.127       -pi/2    0]);
-    L(3) = Link([0      0       -0.266 0       0]);
-    L(4) = Link([0      0       -0.2132 0       0]);
-    L(5) = Link([0      0.1124  0       pi/2    0]);
-    L(6) = Link([0      0.08535 0       -pi/2	0]);
+    L(1) = Link([0     0       0       pi/2    1]); % PRISMATIC Link
+    L(2) = Link([0     0   0.127   pi/2    0]);
+    L(3) = Link([0      0       0.266 0       0]);
+    L(4) = Link([0      0       0.2132 0       0]);
+    L(5) = Link([0      0.1124  0       0    0]);
+    L(6) = Link([0      0.08535 0       0	0]);
     L(7) = Link([0      0.0819  0       0       0]);
     
     % Incorporate joint limits
@@ -28,7 +28,7 @@ function r = GetAuboi3()
     L(7).qlim = [-360 360]*pi/180;
 
     L(1).offset = 0;
-    L(2).offset = 0;
+    L(2).offset = -pi/2;
     L(3).offset = pi/2;
 %     L(5).offset = -pi/2;
 
