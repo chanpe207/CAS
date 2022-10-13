@@ -1,5 +1,5 @@
 function PlotAndColourRobot(r, workspace)
-    for linkIndex = 0:r.n
+    for linkIndex = 1:r.n
         [ faceData, vertexData, plyData{linkIndex+1} ] = plyread(['part_',num2str(linkIndex),'.PLY'],'tri'); %#ok<AGROW>
 
         r.faces{linkIndex+1} = faceData;
