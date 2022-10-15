@@ -1,4 +1,4 @@
-function SprayPaintUR3()
+function SprayPaintUR3(paperCoords)
 %SPRAYPAINTUR3 Summary of this function goes here
 
 %   create the UR3 at a point in the workspace
@@ -20,9 +20,13 @@ qMatrix = jtraj(q1,q2,steps);
 
 for i = 1:steps
     r.model.animate(qMatrix(i,:));
-    pause();
+    pause(0.01);
 end
 
 %% Translate paper corners away from paper by x distance
+distanceFromPaper = 0.2;
+goalPoints = paperCoords.*transl(distanceFromPaper,0,0);
+
+
 end
 
