@@ -135,7 +135,7 @@ classdef SprayPaintingBots
             end
         end
 
-        function paperCoords = GetPaperCoords(obj, paperSize, paperPose)
+        function paperCorners = GetPaperCoords(obj, paperSize, paperPose)
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
             topLeft = paperPose;
@@ -143,7 +143,7 @@ classdef SprayPaintingBots
             bottomLeft = topLeft*transl(0,0,-paperSize(2));
             bottomRight = bottomLeft*transl(paperSize(1),0,0);
 
-            paperCoords = [topLeft; topRight; bottomLeft; bottomRight];
+            paperCorners = [topLeft; topRight; bottomLeft; bottomRight];
         end
     end
 end
