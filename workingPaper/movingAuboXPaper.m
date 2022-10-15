@@ -19,6 +19,8 @@ loadPaperModel = onepaper(x_pO,y_pO,z_pO)
 
 paperPos = loadPaperModel.fkine(loadPaperModel.getpos())
 
+view(3)
+axis equal
 %% Move Auboi3 to get paper                
 steps = 20;
 q1 = r.getpos();
@@ -46,11 +48,12 @@ for i = 1:20
     r.animate(qMatrix2(i,:));
     drawnow()
 
-%     for j = x_pO:x
-%     loadPaperModel.base =  loadPaperModel.base * transl([x,y,z]);
-%     loadPaperModel.animate(paperPos);
-%     r.base = r.base * transl([0,0,0.025]);
-%     r.animate(r.getpos());
+    for j = x_pO:x
+    loadPaperModel.base =  loadPaperModel.base * transl([x,y,z]);
+    loadPaperModel.animate(paperPos);
+    r.base = r.base * transl([0,0,0.025]);
+    r.animate(r.getpos());
+    end
     
     
 end
