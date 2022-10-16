@@ -17,14 +17,15 @@ classdef SprayPaintingBots
         function obj = SprayPaintingBots()
             %SPRAYPAINTINGBOTS Construct an instance of this class
             %   Detailed explanation goes here
+            
             focalLength    = [554 554]; 
             principalPoint = [320 240];
             imageSize      = [480 640]; %change these to the camera required
-            obj.Intrinsics = cameraIntrinsics(focalLength,principalPoint,imageSize);
-            obj.MarkerImg = rgb2gray (imread('../meshes/0.png'));
-            obj.CameraRgbSub = rossubscriber();
-            obj.CameraDepthSub = rossubscriber();
-            obj.PoseSub = rossubscriber();
+%             obj.Intrinsics = cameraIntrinsics(focalLength,principalPoint,imageSize);
+%             obj.MarkerImg = rgb2gray (imread('../meshes/0.png'));
+%             obj.CameraRgbSub = rossubscriber();
+%             obj.CameraDepthSub = rossubscriber();
+%             obj.PoseSub = rossubscriber();
 
         end
 
@@ -135,16 +136,94 @@ classdef SprayPaintingBots
             end
         end
 
-        function paperCorners = GetPaperCoords(obj, paperSize, paperPose)
+        function paperCornersAll = GetPaperCorners(obj, paperPose)
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
-            topLeft = paperPose;
-            topRight = topLeft*transl(paperSize(1),0,0);
-            bottomLeft = topLeft*transl(0,0,-paperSize(2));
-            bottomRight = bottomLeft*transl(paperSize(1),0,0);
+            topLeft = paperPose*transl(obj.paperSize(1)/2,0,obj.paperSize(2)/2);
+            topRight = paperPose*transl(-obj.paperSize(1)/2,0,obj.paperSize(2)/2);
+            bottomLeft = paperPose*transl(obj.paperSize(1)/2,0,-obj.paperSize(2)/2);
+            bottomRight = paperPose*transl(-obj.paperSize(1)/2,0,-obj.paperSize(2)/2);
 
             paperCorners = [topLeft; topRight; bottomLeft; bottomRight];
+            numPaperCorners = 4;
+
+            for i = 1:numPaperCorners
+                paperCornersAll(:,:,i) = paperCorners((i-1)*4+(1:4),1:4);
+            end
         end
+
+        function ur3Robot = getUR3(obj)
+            %   create the UR3 at a point in the workspace
+             ur3Robot = UR3;
+            % Move from zero position to position ready to spray
+            
+            % readyEEPosition = [-0.2133; -0.1942; 0.4809];
+            % readyEEAngles = [pi 0 -pi/2];
+            % readyEEOrientation = eul2rotm(readyEEAngles);
+            % T2 = cat(1,cat(2,readyEEOrientation,readyEEPosition),[0 0 0 1]);
+            steps = 20;
+            q1 = ur3Robot.model.getpos();
+            q2 = [0 -pi/2 pi/2 pi 0 0];
+            
+            qMatrix = jtraj(q1,q2,steps);
+            
+            for i = 1:steps
+                ur3Robot.model.animate(qMatrix(i,:));
+                pause(0.01);
+            end
+        end
+
+        function SprayPaintUR3(obj, ur3Robot, paperCornersAll, paperMoving)            
+            % Begin when paper is detected and not moving
+            steps = 20;
+            if paperMoving == 0
+                % Translate paper corners away from paper by x distance
+                distanceFromPaper = 0.2;
+                goalTopLeft = paperCornersAll(:,:,1)*transl(0,distanceFromPaper,0);
+                goalTopRight = paperCornersAll(:,:,2)*transl(0,distanceFromPaper,0);
+                goalBottomLeft = paperCornersAll(:,:,3)*transl(0,distanceFromPaper,0);
+                goalBottomRight = paperCornersAll(:,:,4)*transl(0,distanceFromPaper,0);
+                
+                % Make two more waypoints in the centre of the paper
+                distx = goalTopRight(1,4)-goalTopLeft(1,4);
+                disty = goalBottomRight(1,4)-goalBottomLeft(1,4);
+                goalTopCentre = goalTopLeft*transl(distx/2,disty/2,0);
+                goalBottomCentre = goalBottomLeft*transl(distx/2,disty/2,0);
+                
+                paperPoints = [goalTopLeft; goalBottomLeft; goalTopCentre; goalBottomCentre; goalTopRight; goalBottomRight];
+                numPaperPoints = 6;
+                
+                for i = 1:numPaperPoints
+                    paperPointsAll(:,:,i) = paperPoints((i-1)*4+(1:4),1:4);
+                end
+                % Spray the paper at all points
+                for j = 1:numPaperPoints
+                    q1 = ur3Robot.model.getpos();
+                    TR = paperPointsAll(:,:,j);
+                    q2 = ur3Robot.model.ikine(TR); % ,'q',[pi pi],'mask',[1 1 1 0 0 0])
+                    
+                    qMatrix = jtraj(q1,q2,steps);
+                    
+                    for i = 1:steps
+                        ur3Robot.model.animate(qMatrix(i,:));
+                        pause(0.1);
+                    end
+                 end
+                
+                % Return to ready and wait for next paper
+                q1 = ur3Robot.model.getpos();
+                q2 = [0 -pi/2 pi/2 pi 0 0];
+                
+                qMatrix = jtraj(q1,q2,steps);
+                
+                for i = 1:steps
+                    ur3Robot.model.animate(qMatrix(i,:));
+                    pause(0.01);
+                end
+            end
+        end
+
+
     end
 end
 
