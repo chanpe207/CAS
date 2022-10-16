@@ -9,7 +9,7 @@ function r = GetAuboi3()
 %     L6 = Link('d',0.08535,'a',0,'alpha',-pi/2,'qlim',deg2rad([-360,360]), 'offset',0);
 %     L7 = Link('d',0.0819,'a',0,'alpha',0,'qlim',deg2rad([-360,360]), 'offset', 0);
 
-    % Create the UR3 model mounted on a linear rail
+    % Create the Auboi3 model mounted on a linear rail
 %     L(1) = Link([pi     0       pi/2       0    1]); % PRISMATIC Link
     L(1) = Link([0      0.157   0     pi/2    0]);
     L(2) = Link([0      0       -0.266 0       0]);
@@ -30,14 +30,13 @@ function r = GetAuboi3()
     L(2).offset = -pi/2;
     L(4).offset = -pi/2;
 
+
     r = SerialLink(L,'name','r');
+
+    scale = 0.25;
     
     % Rotate robot to the correct orientation
 %     r.base = r.base * trotx(pi/2) * troty(pi/2);
     r.base = r.base * transl(0,0.344,0);
-
-    q = [0,0,0,0,0,0,0];
-
-    r.plot(q,'workspace',[-2 2 -2 2 -1 2],'scale',0.5);
 
 end
