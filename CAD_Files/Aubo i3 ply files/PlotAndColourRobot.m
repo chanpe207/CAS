@@ -7,6 +7,7 @@ function PlotAndColourRobot(r, workspace)
     end
 
     % Display robot
+    hold on
     r.plot3d(zeros(1,r.n),'noarrow','workspace',workspace);
     if isempty(findobj(get(gca,'Children'),'Type','Light'))
         camlight
