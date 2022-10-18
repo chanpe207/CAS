@@ -21,6 +21,7 @@ classdef SprayPaintingBots
             focalLength    = [554 554]; 
             principalPoint = [320 240];
             imageSize      = [480 640]; %change these to the camera required
+
 %             obj.Intrinsics = cameraIntrinsics(focalLength,principalPoint,imageSize);
 %             obj.MarkerImg = rgb2gray (imread('../meshes/0.png'));
 %             obj.CameraRgbSub = rossubscriber();
@@ -35,7 +36,10 @@ classdef SprayPaintingBots
             rbgImgMsg = receive(obj.CameraRgbSub);
             ur3Pose = UR3PoseCallback(obj);
             [markerPresent,paperPose] = AnalyseImage(obj, rgbImgMsg, depthMsg, ur3Pose);
-            paperCoords = GetPaperCoords(obj, paperSize, paperPose);
+
+            paperPose = eye(4,4);
+            paperPose = paperPose*transl(0,-0.6,0.4);
+            paperCornersAll = GetPaperCoords(obj, paperPose);
 
         end
         
@@ -139,7 +143,6 @@ classdef SprayPaintingBots
         function paperCornersAll = GetPaperCorners(obj, paperPose)
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
-            paperPose(1:3, 1:3) = [-1 0 0; 0 0 -1; 0 -1 0];
 
             topLeft = paperPose*transl(obj.paperSize(1)/2,0,obj.paperSize(2)/2);
             topRight = paperPose*transl(-obj.paperSize(1)/2,0,obj.paperSize(2)/2);
@@ -197,22 +200,28 @@ classdef SprayPaintingBots
                 
                 for i = 1:numPaperPoints
                     paperPointsAll(:,:,i) = paperPoints((i-1)*4+(1:4),1:4);
+                    paperPointsAll(1:3,1:3,i) = [-1 0 0;0 0 -1; 0 -1 0];
                 end
                 % Spray the paper at all points
                 for j = 1:numPaperPoints
                     q1 = ur3Robot.model.getpos();
-                    TR = paperPointsAll(:,:,j);
-                    q2 = ur3Robot.model.ikine(TR, q1, [1 1 1 0 0 0]); % ,'q',[pi pi],'mask',[1 1 1 0 0 0])
+                    TR1 = ur3Robot.model.fkine(q1);
+                    TR2 = paperPointsAll(:,:,j);
+                    q2 = ur3Robot.model.ikcon(TR2, q1); % , q1, [1 1 1 0 1 1]
                     
-                    qMatrix = jtraj(q1,q2,steps);
+%                     qMatrix = jtraj(q1,q2,steps);
+                    s = lspb(0,1,steps);
+                    for i = 1:steps
+                      qMatrix(i,:) = (1-s(i))*q1 + s(i)*q2;
+                    end
                     
                     for i = 1:steps
                         ur3Robot.model.animate(qMatrix(i,:));
                         pause(0.1);
                     end
                     EEPose = ur3Robot.model.fkine(ur3Robot.model.getpos());
-                    errorMarginPos = TR(1:3,4)-EEPose(1:3,4)
-                    errorMarginRot = rotm2eul(TR(1:3,1:3))-rotm2eul(EEPose(1:3,1:3))
+                    errorMarginPos = TR2(1:3,4)-EEPose(1:3,4)
+                    errorMarginRot = rotm2eul(TR2(1:3,1:3))-rotm2eul(EEPose(1:3,1:3))
                  end
                 
                 % Return to ready and wait for next paper
