@@ -1,32 +1,47 @@
 % setup robot
-close all;clear all;clc
+% close all;clear all;clc
+clf;clear all;clc
+
 workspace = [2 -2 2 -2 2 -1];
 r = GetAuboi3()
 PlotAndColourRobot(r, workspace)
+% q = r.getpos() %not needed is actually for grippers from grabPaper.m (aka stackbrick.m)
 endEffectorPos = r.fkine(r.getpos())
 
-% robot arm moves from origin to grab paper
-% returns from location of paper to default position
-% the below is the location of the paper in space when robot is at default location
-x = endEffectorPos(1,4) %- 0.1
-y = endEffectorPos(2,4)
-z = endEffectorPos(3,4)
+% below (default location of EE) WILL BE location of the paper in space when return from retrieval
+x_O = endEffectorPos(1,4) %- 0.1
+y_O = endEffectorPos(2,4)
+z_O = endEffectorPos(3,4) %- 0.1 %this one cause of suction VERTICALLY
 
 % spawning paper at this location: paper origin (pO)
-x_pO = x + 0.2
-y_pO = y + 0.2
-z_pO = z + 0.2
+x = r.base(1,4)
+y = r.base(2,4) + 0.2
+z = r.base(3,4)
+% x_pO = x + 0.2
+% y_pO = y + 0.2
+% z_pO = z + 0.2
 hold on
-loadPaperModel = onepaper(x_pO,y_pO,z_pO)
 
-paperPos = loadPaperModel.fkine(loadPaperModel.getpos())
+% loadPaperModel = onepaper(x_pO,y_pO,z_pO)
+% loadPaperModel = Place_Workspace_Object_Paper();
+[brick_tr_all, brick_h] = Place_Workspace_Object_Paper(x,y,z);
+brick_goal_coords = [x y z]
+hold on
+
+grabPaper(x,y,z,r, brick_goal_coords, brick_tr_all, brick_h);
+
+
+% paperPos = loadPaperModel.fkine(loadPaperModel.getpos())
+paperPos = brick_goal_coords %i.e. final pos initial pos??
+
 
 view(3)
 axis equal
 %% Move Auboi3 to get paper                
+% robot arm moves away from origin to paper
 steps = 20;
 q1 = r.getpos();
-T2 = transl([x_pO,y_pO,z_pO-0.05]);
+T2 = transl([x,y,z-0.05]);
 q2 = r.ikcon(T2);
 qMatrix = jtraj(q1,q2,steps);
 
@@ -35,26 +50,32 @@ for i = 1:20
     drawnow()
 end
 
+
+%% returns w/ paper to default position
+
+
 %% retrieve to position
 
 %for robot
 q1_new = r.getpos();
-T3 = transl(x,y,z);
+T3 = transl(x_O,y_O,z_O);
 q2_new = r.ikcon(T3);
 qMatrix2 = jtraj(q1_new,q2_new,steps);
 
 %for paper
-
+[num_bricks, brick_coords, brick_tr_all, brick_h] = Place_Workspace_Object_Paper()
+grabPaper(brick_coords, r, gripper1, gripper2, brick_tr_all, q, brick_h)
 
 for i = 1:20
     r.animate(qMatrix2(i,:));
     drawnow()
 
-    for j = x_pO:x
-    loadPaperModel.base =  loadPaperModel.base * transl([x,y,z]);
+    for j = x:x_O
+    loadPaperModel.base =  loadPaperModel.base * transl([x_O,y_O,z_O]);
     loadPaperModel.animate(paperPos);
     r.base = r.base * transl([0,0,0.025]);
     r.animate(r.getpos());
+    drawnow()
     end
     
     
