@@ -6,7 +6,6 @@ classdef SprayPaintingBots
 %         CameraRgbSub;
 %         CameraDepthSub;
 %         PoseSub;
-        jointStateSubscriber;
 
 
         MarkerImg;
@@ -24,7 +23,7 @@ classdef SprayPaintingBots
             %SPRAYPAINTINGBOTS Construct an instance of this class
             %   Detailed explanation goes here
 
-%             rosinit(NodeHost); % input NodeHost as '192.168.0.253'
+            rosinit(NodeHost); % input NodeHost as '192.168.0.253'
             
 %             focalLength    = [554 554]; 
 %             principalPoint = [320 240];
@@ -35,15 +34,16 @@ classdef SprayPaintingBots
 %             obj.CameraRgbSub = rossubscriber();
 %             obj.CameraDepthSub = rossubscriber();
 %             obj.PoseSub = rossubscriber();
-            jointStateSubscriber = rossubscriber('joint_states','sensor_msgs/JointState');
+%             jointStateSubscriber = rossubscriber('joint_states','sensor_msgs/JointState');
 
         end
 
-        function StartWorkFlow
+        function StartWorkFlow(obj)
             
 %             depthMsg = CameraDepthCallback(obj);
 %             rbgImgMsg = receive(obj.CameraRgbSub);
 %             [markerPresent,paperPose] = AnalyseImage(obj, rgbImgMsg, depthMsg, ur3Pose);
+            jointStateSubscriber = rossubscriber('joint_states','sensor_msgs/JointState');
 
             paperPose = eye(4,4);
             paperPose = paperPose*transl(0,-0.6,0.5);
@@ -58,11 +58,12 @@ classdef SprayPaintingBots
             goal.GoalTimeTolerance = rosduration(0.05);
 
             ur3Robot = getUR3(obj);
-            [nextJointState_123456] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, paperMoving);
+            [nextJointState_123456] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, 0);
 
-            [startJointSend, currentJointState_123456] = UR3PoseCallback(obj);
+            [startJointSend, currentJointState_123456] = UR3PoseCallback(obj, jointStateSubscriber);
             [goal] = UR3GetTrajectory(obj, startJointSend, nextJointState_123456, goal);
-            SprayPaintUR3Real(obj, nextJointState_123456, client, goal)
+            readyRealUR3(obj, client, goal, jointStateSubscriber);
+            SprayPaintUR3Real(obj, nextJointState_123456, client, goal, jointStateSubscriber)
 
 
 
@@ -76,8 +77,9 @@ classdef SprayPaintingBots
             depthMsg = receive(obj.CameraDepthSub);
         end
 
-        function [startJointSend, currentJointState_123456] = UR3PoseCallback(obj)
-            currentJointState_321456 = (obj.jointStateSubscriber.LatestMessage.Position)'; % Note the default order of the joints is 3,2,1,4,5,6
+        function [startJointSend, currentJointState_123456] = UR3PoseCallback(obj, jointStateSubscriber)
+            
+            currentJointState_321456 = (jointStateSubscriber.LatestMessage.Position)'; % Note the default order of the joints is 3,2,1,4,5,6
             currentJointState_123456 = [currentJointState_321456(3:-1:1),currentJointState_321456(4:6)];
             
             startJointSend = rosmessage('trajectory_msgs/JointTrajectoryPoint');
@@ -217,6 +219,27 @@ classdef SprayPaintingBots
             end
         end
 
+        function readyRealUR3(obj, client, goal, jointStateSubscriber)
+            % Move from zero position to position ready to spray
+            
+            % readyEEPosition = [-0.2133; -0.1942; 0.4809];
+            % readyEEAngles = [pi 0 -pi/2];
+            % readyEEOrientation = eul2rotm(readyEEAngles);
+            % T2 = cat(1,cat(2,readyEEOrientation,readyEEPosition),[0 0 0 1]);
+            % steps = 20;
+            % q1 = ur3Robot.model.getpos();
+            q2 = [0 -pi/2 pi/2 pi 0 0];
+            
+            [startJointSend, currentJointState_123456] = UR3PoseCallback(obj, jointStateSubscriber);
+            disp(currentJointState_123456)
+            goal = UR3GetTrajectory(obj, startJointSend, q2, goal);
+            disp(q2)
+            
+            
+            goal.Trajectory.Header.Stamp = jointStateSubscriber.LatestMessage.Header.Stamp + rosduration(obj.bufferSeconds);
+            sendGoal(client,goal);
+        end
+
         function [nextJointState_123456] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, paperMoving)            
             % Begin when paper is detected and not moving
             steps = 20;
@@ -272,14 +295,14 @@ classdef SprayPaintingBots
                 
                 for i = 1:steps
                     ur3Robot.model.animate(qMatrix(i,:));
-                    pause(0.01);
+                    pause(0.1);
                 end
             end
         end
 
         %% Do Collision Detection!!!
 
-        function SprayPaintUR3Real(obj, nextJointState_123456, client, goal) 
+        function SprayPaintUR3Real(obj, nextJointState_123456, client, goal, jointStateSubscriber) 
             numPaperPoints = 6;
             % Spray the paper at all points
             for j = 1:numPaperPoints
@@ -288,13 +311,13 @@ classdef SprayPaintingBots
 %                 TR2 = paperPointsAll(:,:,j);
 %                 q2 = ur3Robot.model.ikcon(TR2, q1); % , q1, [1 1 1 0 1 1]
 
-                [startJointSend, currentJointState_123456] = UR3PoseCallback(obj);
+                [startJointSend, currentJointState_123456] = UR3PoseCallback(obj, jointStateSubscriber);
                 disp(currentJointState_123456)
                 goal = UR3GetTrajectory(obj, startJointSend, nextJointState_123456(:,:,j), goal);
                 disp(nextJointState_123456(:,:,j))
                 
                 
-                goal.Trajectory.Header.Stamp = obj.jointStateSubscriber.LatestMessage.Header.Stamp + rosduration(obj.bufferSeconds);
+                goal.Trajectory.Header.Stamp = jointStateSubscriber.LatestMessage.Header.Stamp + rosduration(obj.bufferSeconds);
                 sendGoal(client,goal);
 %                 EEPose = ur3Robot.model.fkine(ur3Robot.model.getpos());
 %                 errorMarginPos = TR2(1:3,4)-EEPose(1:3,4)
@@ -304,12 +327,12 @@ classdef SprayPaintingBots
             % Return to ready and wait for next paper
 %             q1 = ur3Robot.model.getpos();
             q2 = [0 -pi/2 pi/2 pi 0 0];
-            [startJointSend, currentJointState_123456] = UR3PoseCallback(obj);
+            [startJointSend, currentJointState_123456] = UR3PoseCallback(obj, jointStateSubscriber);
             disp(currentJointState_123456)
             [goal] = UR3GetTrajectory(obj, startJointSend, q2, goal);
             disp(q2)
             
-            goal.Trajectory.Header.Stamp = obj.jointStateSubscriber.LatestMessage.Header.Stamp + rosduration(obj.bufferSeconds);
+            goal.Trajectory.Header.Stamp = jointStateSubscriber.LatestMessage.Header.Stamp + rosduration(obj.bufferSeconds);
             sendGoal(client,goal);
         end
 
