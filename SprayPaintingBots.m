@@ -11,9 +11,10 @@ classdef SprayPaintingBots
         MarkerImg;
         Intrinsics;
         MarkerSize = 0.09;
-        paperSize = [0.15 0.24]; %width by height
+        paperSize = [0.26 0.19]; %width by height
 
-        paperPickupCoords = [-0.605 0.3 0.575]% Paper Coordinates
+        paperPickupCoords = [-0.605 0.3 0.575];% Paper Coordinates
+        paperPutdownCoords = [-0.605 -0.3 0.575];
 
         bufferSeconds = 1; % This allows for the time taken to send the message. If the network is fast, this could be reduced.
         durationSeconds = 5; % This is how many seconds the movement will take
@@ -48,7 +49,7 @@ classdef SprayPaintingBots
             pause(2);
 
             paperPose = eye(4,4);
-            paperPose = paperPose*transl(0,-0.6,0.5);
+            paperPose = paperPose*transl(-0.3035,0,0.857);
             paperCornersAll = GetPaperCorners(obj, paperPose);
             
             jointNames = {'shoulder_pan_joint','shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint'};
@@ -202,12 +203,12 @@ classdef SprayPaintingBots
             
             
             
-            [f, v, data] = plyread('whiteEnvelope1.ply','tri');
-            data.vertex.red = data.vertex.x;
-            data.vertex.green = data.vertex.y;
-            data.vertex.blue = data.vertex.z;
-            vertexColours = [data.vertex.red, data.vertex.green, data.vertex.blue] / 255;
-            paper_h = trisurf(f,v(:,1)+ obj.paperPickupCoords(1) ,v(:,3)+obj.paperPickupCoords(2), v(:,2)+obj.paperPickupCoords(3), 'FaceVertexCData', vertexColours, 'EdgeColor', 'interp');
+%             [f, v, data] = plyread('whiteEnvelope1.ply','tri');
+%             data.vertex.red = data.vertex.x;
+%             data.vertex.green = data.vertex.y;
+%             data.vertex.blue = data.vertex.z;
+%             vertexColours = [data.vertex.red, data.vertex.green, data.vertex.blue] / 255;
+%             paper_h = trisurf(f,v(:,1)+ obj.paperPickupCoords(1) ,v(:,3)+obj.paperPickupCoords(2), v(:,2)+obj.paperPickupCoords(3), 'FaceVertexCData', vertexColours, 'EdgeColor', 'interp');
 
             drawnow();
             axis equal
@@ -218,10 +219,10 @@ classdef SprayPaintingBots
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
 
-            topLeft = paperPose*transl(obj.paperSize(1)/2,0,obj.paperSize(2)/2);
-            topRight = paperPose*transl(-obj.paperSize(1)/2,0,obj.paperSize(2)/2);
-            bottomLeft = paperPose*transl(obj.paperSize(1)/2,0,-obj.paperSize(2)/2);
-            bottomRight = paperPose*transl(-obj.paperSize(1)/2,0,-obj.paperSize(2)/2);
+            topLeft = paperPose*transl(0,obj.paperSize(1)/2,obj.paperSize(2)/2);
+            topRight = paperPose*transl(0,-obj.paperSize(1)/2,obj.paperSize(2)/2);
+            bottomLeft = paperPose*transl(0,obj.paperSize(1)/2,-obj.paperSize(2)/2);
+            bottomRight = paperPose*transl(0,-obj.paperSize(1)/2,-obj.paperSize(2)/2);
 
             paperCorners = [topLeft; topRight; bottomLeft; bottomRight];
             numPaperCorners = 4;
@@ -300,7 +301,61 @@ classdef SprayPaintingBots
                 drawnow()
                 pause(0.2)
             end
+
+            %Move back to spray
+            T2 = [0 0 1 -0.3035; -1 0 0 0; 0 -1 0 0.857; 0 0 0 1];
+
+            q1_hardcoded = auboi3Robot.getpos();
+            q2_hardcoded = auboi3Robot.ikcon(T2,q1_hardcoded);
+            qMatrix = jtraj(q1_hardcoded,q2_hardcoded,steps)
+
+            for i = 1:steps
+                auboi3Robot.animate(qMatrix(i,:));
+                drawnow()
+                pause(0.2)
+            end
             
+        end
+
+        function PutDownPaperAuboi3Sim(obj, auboi3Robot)
+            % First go to zero position
+
+            steps = 20;
+
+            q1_hardcoded = auboi3Robot.getpos();
+            q2_hardcoded = [0 0 0 0 0 0];
+            s = lspb(0,1,steps);
+            for i = 1:steps
+                qMatrix(i,:) = (1-s(i))*q1_hardcoded + s(i)*q2_hardcoded;
+            end
+
+            for i = 1:steps
+                auboi3Robot.animate(qMatrix(i,:));
+                drawnow()
+                pause(0.2)
+            end
+
+            % Now put down
+            x = obj.paperPutdownCoords(1);
+            y = obj.paperPutdownCoords(2);
+            z = obj.paperPutdownCoords(3);
+%             EEPose = auboi3Robot.fkine(auboi3Robot.getpos());
+            T2 = [1 0 0 x; 0 -1 0 y; 0 0 -1 z+0.1865; 0 0 0 1];
+
+            steps = 20;
+
+            q1_hardcoded = auboi3Robot.getpos();
+            q2_hardcoded = auboi3Robot.ikcon(T2,q1_hardcoded);
+            s = lspb(0,1,steps);
+            for i = 1:steps
+                qMatrix(i,:) = (1-s(i))*q1_hardcoded + s(i)*q2_hardcoded;
+            end
+
+            for i = 1:steps
+                auboi3Robot.animate(qMatrix(i,:));
+                drawnow()
+                pause(0.2)
+            end
         end
 
         function [nextJointState_123456, movementDuration] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, paperMoving)            
@@ -310,10 +365,10 @@ classdef SprayPaintingBots
             if paperMoving == 0
                 % Translate paper corners away from paper by x distance
                 distanceFromPaper = 0.2;
-                goalTopLeft = paperCornersAll(:,:,1)*transl(0,distanceFromPaper,0);
-                goalTopRight = paperCornersAll(:,:,2)*transl(0,distanceFromPaper,0);
-                goalBottomLeft = paperCornersAll(:,:,3)*transl(0,distanceFromPaper,0);
-                goalBottomRight = paperCornersAll(:,:,4)*transl(0,distanceFromPaper,0);
+                goalTopLeft = paperCornersAll(:,:,1)*transl(distanceFromPaper,0,0);
+                goalTopRight = paperCornersAll(:,:,2)*transl(distanceFromPaper,0,0);
+                goalBottomLeft = paperCornersAll(:,:,3)*transl(distanceFromPaper,0,0);
+                goalBottomRight = paperCornersAll(:,:,4)*transl(distanceFromPaper,0,0);
                 
                 % Make two more waypoints in the centre of the paper
                 distx = goalTopRight(1,4)-goalTopLeft(1,4);
@@ -326,7 +381,7 @@ classdef SprayPaintingBots
                 
                 for i = 1:numPaperPoints
                     paperPointsAll(:,:,i) = paperPoints((i-1)*4+(1:4),1:4);
-                    paperPointsAll(1:3,1:3,i) = [-1 0 0;0 0 -1; 0 -1 0];
+                    paperPointsAll(1:3,1:3,i) = [0 0 -1;1 0 0; 0 -1 0];
                 end
                 % Spray the paper at all points
                 for j = 1:numPaperPoints
@@ -344,7 +399,7 @@ classdef SprayPaintingBots
                     movementStart = tic;
                     for i = 1:steps
                         ur3Robot.model.animate(qMatrix(i,:));
-                        pause(0.4);
+                        pause(0.1);
                     end
                     movementDuration(:,j) = toc(movementStart);
                     EEPose = ur3Robot.model.fkine(ur3Robot.model.getpos());
@@ -361,7 +416,7 @@ classdef SprayPaintingBots
                 movementStart = tic;
                 for i = 1:steps
                     ur3Robot.model.animate(qMatrix(i,:));
-                    pause(0.35);
+                    pause(0.1);
                 end
                 movementDuration(:,j+1) = toc(movementStart);
             end
