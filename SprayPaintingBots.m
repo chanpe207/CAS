@@ -13,6 +13,7 @@ classdef SprayPaintingBots
         MarkerSize = 0.09;
         paperSize = [0.15 0.24]; %width by height
 
+        paperPickupCoords = [-0.605 0.3 0.575]% Paper Coordinates
 
         bufferSeconds = 1; % This allows for the time taken to send the message. If the network is fast, this could be reduced.
         durationSeconds = 5; % This is how many seconds the movement will take
@@ -61,7 +62,7 @@ classdef SprayPaintingBots
             goal.GoalTimeTolerance = rosduration(0.05);
 
             clf
-            PlotSprayPaintEnvironment(obj)
+            [auboi3Robot, ur3Robot] = PlotSprayPaintEnvironment(obj)
             [nextJointState_123456, movementDuration] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, 0)
 
             [startJointSend, currentJointState_123456] = UR3PoseCallback(obj, jointStateSubscriber);
@@ -185,7 +186,7 @@ classdef SprayPaintingBots
             goal.Trajectory.Points = [startJointSend; endJointSend];
         end
 
-        function PlotSprayPaintEnvironment(obj)
+        function [auboi3Robot, ur3Robot] = PlotSprayPaintEnvironment(obj)
             workspace = [4 -4 4 -4 3 0];
 
             auboi3Robot = GetAuboi3();
@@ -199,19 +200,18 @@ classdef SprayPaintingBots
             transformedVertices = transformedVertices * trotx(pi/2)';
             set(mesh_environment,'Vertices',transformedVertices(:,1:3));
             
-            % Paper Coordinates
-            x = -0.605;
-            y = 0.242;
-            z = 0.575;
+            
+            
             [f, v, data] = plyread('whiteEnvelope1.ply','tri');
             data.vertex.red = data.vertex.x;
             data.vertex.green = data.vertex.y;
             data.vertex.blue = data.vertex.z;
             vertexColours = [data.vertex.red, data.vertex.green, data.vertex.blue] / 255;
-            paper_h = trisurf(f,v(:,1)+ x,v(:,3)+y, v(:,2)+z, 'FaceVertexCData', vertexColours, 'EdgeColor', 'interp');
+            paper_h = trisurf(f,v(:,1)+ obj.paperPickupCoords(1) ,v(:,3)+obj.paperPickupCoords(2), v(:,2)+obj.paperPickupCoords(3), 'FaceVertexCData', vertexColours, 'EdgeColor', 'interp');
 
             drawnow();
             axis equal
+            view(3)
         end
 
         function paperCornersAll = GetPaperCorners(obj, paperPose)
@@ -273,6 +273,34 @@ classdef SprayPaintingBots
             
             goal.Trajectory.Header.Stamp = jointStateSubscriber.LatestMessage.Header.Stamp + rosduration(obj.bufferSeconds);
             sendGoal(client,goal);
+        end
+
+        function MovePaperAuboi3Sim(obj, auboi3Robot)
+%             q1 = deg2rad(0);
+%             q2 = deg2rad(72);
+%             q3 = deg2rad(6.8);
+%             q4 = deg2rad(12);
+%             q5 = deg2rad(-90);
+%             q6 = deg2rad(90);
+%             T2 = [q1 q2 q3 q4 q5 q6];
+            x = obj.paperPickupCoords(1);
+            y = obj.paperPickupCoords(2);
+            z = obj.paperPickupCoords(3);
+            EEPose = auboi3Robot.fkine(auboi3Robot.getpos());
+            T2 = [1 0 0 x; 0 -1 0 y; 0 0 -1 z+0.1865; 0 0 0 1];
+
+            steps = 20;
+
+            q1_hardcoded = auboi3Robot.getpos();
+            q2_hardcoded = auboi3Robot.ikcon(T2,q1_hardcoded);
+            qMatrix = jtraj(q1_hardcoded,q2_hardcoded,steps)
+
+            for i = 1:steps
+                auboi3Robot.animate(qMatrix(i,:));
+                drawnow()
+                pause(0.2)
+            end
+            
         end
 
         function [nextJointState_123456, movementDuration] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, paperMoving)            
