@@ -11,7 +11,7 @@ classdef SprayPaintingBots
         MarkerImg;
         Intrinsics;
         MarkerSize = 0.09;
-        paperSize = [0.2 0.3];
+        paperSize = [0.0908 0.1216];
 
 
         bufferSeconds = 1; % This allows for the time taken to send the message. If the network is fast, this could be reduced.
@@ -23,7 +23,7 @@ classdef SprayPaintingBots
             %SPRAYPAINTINGBOTS Construct an instance of this class
             %   Detailed explanation goes here
 
-            rosinit(NodeHost); % input NodeHost as '192.168.0.253'
+%             rosinit(NodeHost); % input NodeHost as '192.168.0.253'
             
 %             focalLength    = [554 554]; 
 %             principalPoint = [320 240];
@@ -44,14 +44,17 @@ classdef SprayPaintingBots
 %             rbgImgMsg = receive(obj.CameraRgbSub);
 %             [markerPresent,paperPose] = AnalyseImage(obj, rgbImgMsg, depthMsg, ur3Pose);
             jointStateSubscriber = rossubscriber('joint_states','sensor_msgs/JointState');
+            pause(2);
 
             paperPose = eye(4,4);
             paperPose = paperPose*transl(0,-0.6,0.5);
             paperCornersAll = GetPaperCorners(obj, paperPose);
             
             jointNames = {'shoulder_pan_joint','shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint'};
+            pause(2);
             
             [client, goal] = rosactionclient('/scaled_pos_joint_traj_controller/follow_joint_trajectory');
+            pause(2);
             goal.Trajectory.JointNames = jointNames;
             goal.Trajectory.Header.Seq = 1;
             goal.Trajectory.Header.Stamp = rostime('Now','system');
