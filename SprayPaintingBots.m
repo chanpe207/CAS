@@ -78,7 +78,7 @@ classdef SprayPaintingBots
         end
 
         function depthMsg = CameraDepthCallback(obj)
-            
+
         function [markerPresent,paperPose] = AnalyseImage(obj, rgbImgMsg, depthMsg, ur3Pose)
             rgbImg = rosReadImage(rgbImgMsg);
             grayImage = rgb2gray(rgbImg);
@@ -198,6 +198,18 @@ classdef SprayPaintingBots
             transformedVertices = [vertices,ones(size(vertices,1),1)] * transl(-2,0,0)';
             transformedVertices = transformedVertices * trotx(pi/2)';
             set(mesh_environment,'Vertices',transformedVertices(:,1:3));
+            
+            % Paper Coordinates
+            x = -0.605;
+            y = 0.242;
+            z = 0.575;
+            [f, v, data] = plyread('whiteEnvelope1.ply','tri');
+            data.vertex.red = data.vertex.x;
+            data.vertex.green = data.vertex.y;
+            data.vertex.blue = data.vertex.z;
+            vertexColours = [data.vertex.red, data.vertex.green, data.vertex.blue] / 255;
+            paper_h = trisurf(f,v(:,1)+ x,v(:,3)+y, v(:,2)+z, 'FaceVertexCData', vertexColours, 'EdgeColor', 'interp');
+
             drawnow();
             axis equal
         end
