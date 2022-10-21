@@ -11,7 +11,7 @@ classdef SprayPaintingBots
         MarkerImg;
         Intrinsics;
         MarkerSize = 0.09;
-        paperSize = [0.0908 0.1216];
+        paperSize = [0.15 0.24]; %width by height
 
 
         bufferSeconds = 1; % This allows for the time taken to send the message. If the network is fast, this could be reduced.
@@ -19,11 +19,11 @@ classdef SprayPaintingBots
     end
     
     methods
-        function obj = SprayPaintingBots(NodeHost)
+        function obj = SprayPaintingBots
             %SPRAYPAINTINGBOTS Construct an instance of this class
             %   Detailed explanation goes here
 
-            rosinit(NodeHost); % input NodeHost as '192.168.0.253'
+            rosinit('192.168.0.253'); % input NodeHost as '192.168.0.253'
             
 %             focalLength    = [554 554]; 
 %             principalPoint = [320 240];
@@ -60,13 +60,15 @@ classdef SprayPaintingBots
             goal.Trajectory.Header.Stamp = rostime('Now','system');
             goal.GoalTimeTolerance = rosduration(0.05);
 
+            clf
+
             ur3Robot = getUR3(obj);
-            [nextJointState_123456] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, 0);
+            [nextJointState_123456, movementDuration] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, 0)
 
             [startJointSend, currentJointState_123456] = UR3PoseCallback(obj, jointStateSubscriber);
             [goal] = UR3GetTrajectory(obj, startJointSend, nextJointState_123456, goal);
             readyRealUR3(obj, client, goal, jointStateSubscriber);
-            SprayPaintUR3Real(obj, nextJointState_123456, client, goal, jointStateSubscriber)
+            SprayPaintUR3Real(obj, nextJointState_123456, client, goal, jointStateSubscriber, movementDuration)
 
 
 
@@ -243,9 +245,10 @@ classdef SprayPaintingBots
             sendGoal(client,goal);
         end
 
-        function [nextJointState_123456] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, paperMoving)            
+        function [nextJointState_123456, movementDuration] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, paperMoving)            
             % Begin when paper is detected and not moving
             steps = 20;
+            movementDuration = ones(1,7)*obj.durationSeconds;
             if paperMoving == 0
                 % Translate paper corners away from paper by x distance
                 distanceFromPaper = 0.2;
@@ -280,11 +283,12 @@ classdef SprayPaintingBots
                     for i = 1:steps
                       qMatrix(i,:) = (1-s(i))*q1 + s(i)*q2;
                     end
-                    
+                    movementStart = tic;
                     for i = 1:steps
                         ur3Robot.model.animate(qMatrix(i,:));
-                        pause(0.1);
+                        pause(0.4);
                     end
+                    movementDuration(:,j) = toc(movementStart);
                     EEPose = ur3Robot.model.fkine(ur3Robot.model.getpos());
                     errorMarginPos = TR2(1:3,4)-EEPose(1:3,4)
                     errorMarginRot = rotm2eul(TR2(1:3,1:3))-rotm2eul(EEPose(1:3,1:3))
@@ -296,16 +300,18 @@ classdef SprayPaintingBots
                 
                 qMatrix = jtraj(q1,q2,steps);
                 
+                movementStart = tic;
                 for i = 1:steps
                     ur3Robot.model.animate(qMatrix(i,:));
-                    pause(0.1);
+                    pause(0.35);
                 end
+                movementDuration(:,j+1) = toc(movementStart);
             end
         end
 
         %% Do Collision Detection!!!
 
-        function SprayPaintUR3Real(obj, nextJointState_123456, client, goal, jointStateSubscriber) 
+        function SprayPaintUR3Real(obj, nextJointState_123456, client, goal, jointStateSubscriber, movementDuration) 
             numPaperPoints = 6;
             % Spray the paper at all points
             for j = 1:numPaperPoints
@@ -322,7 +328,7 @@ classdef SprayPaintingBots
                 
                 goal.Trajectory.Header.Stamp = jointStateSubscriber.LatestMessage.Header.Stamp + rosduration(obj.bufferSeconds);
                 sendGoal(client,goal);
-                pause(5);
+                pause(movementDuration(:,j));
 %                 EEPose = ur3Robot.model.fkine(ur3Robot.model.getpos());
 %                 errorMarginPos = TR2(1:3,4)-EEPose(1:3,4)
 %                 errorMarginRot = rotm2eul(TR2(1:3,1:3))-rotm2eul(EEPose(1:3,1:3))
@@ -338,7 +344,7 @@ classdef SprayPaintingBots
             
             goal.Trajectory.Header.Stamp = jointStateSubscriber.LatestMessage.Header.Stamp + rosduration(obj.bufferSeconds);
             sendGoal(client,goal);
-            pause(5);
+            pause(movementDuration(:,j+1));
         end
 
 
