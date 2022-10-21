@@ -23,7 +23,7 @@ classdef SprayPaintingBots
             %SPRAYPAINTINGBOTS Construct an instance of this class
             %   Detailed explanation goes here
 
-%             rosinit(NodeHost); % input NodeHost as '192.168.0.253'
+            rosinit(NodeHost); % input NodeHost as '192.168.0.253'
             
 %             focalLength    = [554 554]; 
 %             principalPoint = [320 240];
@@ -322,6 +322,7 @@ classdef SprayPaintingBots
                 
                 goal.Trajectory.Header.Stamp = jointStateSubscriber.LatestMessage.Header.Stamp + rosduration(obj.bufferSeconds);
                 sendGoal(client,goal);
+                pause(5);
 %                 EEPose = ur3Robot.model.fkine(ur3Robot.model.getpos());
 %                 errorMarginPos = TR2(1:3,4)-EEPose(1:3,4)
 %                 errorMarginRot = rotm2eul(TR2(1:3,1:3))-rotm2eul(EEPose(1:3,1:3))
@@ -337,6 +338,7 @@ classdef SprayPaintingBots
             
             goal.Trajectory.Header.Stamp = jointStateSubscriber.LatestMessage.Header.Stamp + rosduration(obj.bufferSeconds);
             sendGoal(client,goal);
+            pause(5);
         end
 
 
