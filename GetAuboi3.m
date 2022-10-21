@@ -36,7 +36,7 @@ function r = GetAuboi3()
     scale = 0.25;
     
     % Rotate robot to the correct orientation
-%     r.base = r.base * trotx(pi/2) * troty(pi/2);
-    r.base = r.base * transl(0,0.344,0);
+    r.base = r.base * trotz(pi/2);
+    r.base = r.base * transl(0,0.5,0.575);
 
 end

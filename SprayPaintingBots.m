@@ -23,7 +23,7 @@ classdef SprayPaintingBots
             %SPRAYPAINTINGBOTS Construct an instance of this class
             %   Detailed explanation goes here
 
-            rosinit('192.168.0.253'); % input NodeHost as '192.168.0.253'
+%             rosinit('192.168.0.253'); % input NodeHost as '192.168.0.253'
             
 %             focalLength    = [554 554]; 
 %             principalPoint = [320 240];
@@ -61,8 +61,7 @@ classdef SprayPaintingBots
             goal.GoalTimeTolerance = rosduration(0.05);
 
             clf
-
-            ur3Robot = getUR3(obj);
+            PlotSprayPaintEnvironment(obj)
             [nextJointState_123456, movementDuration] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, 0)
 
             [startJointSend, currentJointState_123456] = UR3PoseCallback(obj, jointStateSubscriber);
@@ -79,28 +78,7 @@ classdef SprayPaintingBots
         end
 
         function depthMsg = CameraDepthCallback(obj)
-            depthMsg = receive(obj.CameraDepthSub);
-        end
-
-        function [startJointSend, currentJointState_123456] = UR3PoseCallback(obj, jointStateSubscriber)
             
-            currentJointState_321456 = (jointStateSubscriber.LatestMessage.Position)'; % Note the default order of the joints is 3,2,1,4,5,6
-            currentJointState_123456 = [currentJointState_321456(3:-1:1),currentJointState_321456(4:6)];
-            
-            startJointSend = rosmessage('trajectory_msgs/JointTrajectoryPoint');
-            startJointSend.Positions = currentJointState_123456;
-            startJointSend.TimeFromStart = rosduration(0);
-        end
-
-        function [goal] = UR3GetTrajectory(obj, startJointSend, nextJointState_123456, goal)
-            endJointSend = rosmessage('trajectory_msgs/JointTrajectoryPoint');
-%             nextJointState_123456 = currentJointState_123456 + [pi/8,0,0,0,0,pi/8];
-            endJointSend.Positions = nextJointState_123456;
-            endJointSend.TimeFromStart = rosduration(obj.durationSeconds);
-
-            goal.Trajectory.Points = [startJointSend; endJointSend];
-        end
-
         function [markerPresent,paperPose] = AnalyseImage(obj, rgbImgMsg, depthMsg, ur3Pose)
             rgbImg = rosReadImage(rgbImgMsg);
             grayImage = rgb2gray(rgbImg);
@@ -185,6 +163,44 @@ classdef SprayPaintingBots
                 disp(paperPose);
             end
         end
+            depthMsg = receive(obj.CameraDepthSub);
+        end
+
+        function [startJointSend, currentJointState_123456] = UR3PoseCallback(obj, jointStateSubscriber)
+            
+            currentJointState_321456 = (jointStateSubscriber.LatestMessage.Position)'; % Note the default order of the joints is 3,2,1,4,5,6
+            currentJointState_123456 = [currentJointState_321456(3:-1:1),currentJointState_321456(4:6)];
+            
+            startJointSend = rosmessage('trajectory_msgs/JointTrajectoryPoint');
+            startJointSend.Positions = currentJointState_123456;
+            startJointSend.TimeFromStart = rosduration(0);
+        end
+
+        function [goal] = UR3GetTrajectory(obj, startJointSend, nextJointState_123456, goal)
+            endJointSend = rosmessage('trajectory_msgs/JointTrajectoryPoint');
+%             nextJointState_123456 = currentJointState_123456 + [pi/8,0,0,0,0,pi/8];
+            endJointSend.Positions = nextJointState_123456;
+            endJointSend.TimeFromStart = rosduration(obj.durationSeconds);
+
+            goal.Trajectory.Points = [startJointSend; endJointSend];
+        end
+
+        function PlotSprayPaintEnvironment(obj)
+            workspace = [4 -4 4 -4 3 0];
+
+            auboi3Robot = GetAuboi3();
+            PlotAndColourRobot(auboi3Robot, workspace);
+
+            hold on
+            ur3Robot = GetUR3(obj);
+            mesh_environment = PlaceObject('decimated_enviroment.PLY');
+            vertices = get(mesh_environment,'Vertices');
+            transformedVertices = [vertices,ones(size(vertices,1),1)] * transl(-2,0,0)';
+            transformedVertices = transformedVertices * trotx(pi/2)';
+            set(mesh_environment,'Vertices',transformedVertices(:,1:3));
+            drawnow();
+            axis equal
+        end
 
         function paperCornersAll = GetPaperCorners(obj, paperPose)
             %METHOD1 Summary of this method goes here
@@ -203,7 +219,7 @@ classdef SprayPaintingBots
             end
         end
 
-        function ur3Robot = getUR3(obj)
+        function ur3Robot = GetUR3(obj)
             %   create the UR3 at a point in the workspace
              ur3Robot = UR3;
             % Move from zero position to position ready to spray
@@ -212,6 +228,8 @@ classdef SprayPaintingBots
             % readyEEAngles = [pi 0 -pi/2];
             % readyEEOrientation = eul2rotm(readyEEAngles);
             % T2 = cat(1,cat(2,readyEEOrientation,readyEEPosition),[0 0 0 1]);
+            ur3Robot.model.base = ur3Robot.model.base * trotz(-pi/2);
+            ur3Robot.model.base = ur3Robot.model.base*transl(0,0.5,0.575);
             steps = 20;
             q1 = ur3Robot.model.getpos();
             q2 = [0 -pi/2 pi/2 pi 0 0];
