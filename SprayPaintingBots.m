@@ -5,7 +5,6 @@ classdef SprayPaintingBots
     properties
 %         CameraRgbSub;
 %         CameraDepthSub;
-%         PoseSub;
 
 
         MarkerImg;
@@ -35,7 +34,6 @@ classdef SprayPaintingBots
 %             obj.MarkerImg = rgb2gray (imread('../meshes/0.png'));
 %             obj.CameraRgbSub = rossubscriber();
 %             obj.CameraDepthSub = rossubscriber();
-%             obj.PoseSub = rossubscriber();
 %             jointStateSubscriber = rossubscriber('joint_states','sensor_msgs/JointState');
 
         end
@@ -234,26 +232,64 @@ classdef SprayPaintingBots
 
         function ur3Robot = GetUR3(obj)
             %   create the UR3 at a point in the workspace
-             ur3Robot = UR3;
-            % Move from zero position to position ready to spray
+            L1 = Link('d',0.1519,'a',0,'alpha',pi/2,'qlim',deg2rad([-360 360]), 'offset',0);
+            L2 = Link('d',0,'a',-0.24365,'alpha',0,'qlim', deg2rad([-360 360]), 'offset',0);
+            L3 = Link('d',0,'a',-0.21325,'alpha',0,'qlim', deg2rad([-360 360]), 'offset', 0);
+            L4 = Link('d',0.11235,'a',0,'alpha',pi/2,'qlim',deg2rad([-360 360]),'offset', 0);
+            L5 = Link('d',0.08535,'a',0,'alpha',-pi/2,'qlim',deg2rad([-360,360]), 'offset',0);
+            L6 = Link('d',0.0819,'a',0,'alpha',0,'qlim',deg2rad([-360,360]), 'offset', 0);
+
+            ur3Robot = SerialLink([L1 L2 L3 L4 L5 L6],'name','ur3Robot');
+
+            %   plot and colour
+            for linkIndex = 0:(ur3Robot.n-1)
+                [ faceData, vertexData, plyData{linkIndex + 1} ] = plyread(['ur3link_',num2str(linkIndex),'.ply'],'tri'); %#ok<AGROW>
+                ur3Robot.faces{linkIndex + 1} = faceData;
+                ur3Robot.points{linkIndex + 1} = vertexData;
+            end
+            %   use end effector with gripper and spray can
+            for linkIndex = ur3Robot.n
+                [ faceData, vertexData, plyData{linkIndex + 1} ] = plyread('gripper_with_spray.ply','tri'); %#ok<AGROW>
+                ur3Robot.faces{linkIndex + 1} = faceData;
+                ur3Robot.points{linkIndex + 1} = vertexData;
+            end
+
+            % Display robot
+            ur3Robot.plot3d(zeros(1,ur3Robot.n),'noarrow','workspace',[-0.6 0.6 -0.6 0.6 -0.2 1.1]);
+            if isempty(findobj(get(gca,'Children'),'Type','Light'))
+                camlight
+            end
+            ur3Robot.delay = 0;
+
+            % Try to correctly colour the arm (if colours are in ply file data)
+            for linkIndex = 0:ur3Robot.n
+                handles = findobj('Tag', ur3Robot.name);
+                h = get(handles,'UserData');
+                try
+                    h.link(linkIndex+1).Children.FaceVertexCData = [plyData{linkIndex+1}.vertex.red ...
+                        , plyData{linkIndex+1}.vertex.green ...
+                        , plyData{linkIndex+1}.vertex.blue]/255;
+                    h.link(linkIndex+1).Children.FaceColor = 'interp';
+                catch ME_1
+                    disp(ME_1);
+                    continue;
+                end
+            end
             
-            % readyEEPosition = [-0.2133; -0.1942; 0.4809];
-            % readyEEAngles = [pi 0 -pi/2];
-            % readyEEOrientation = eul2rotm(readyEEAngles);
-            % T2 = cat(1,cat(2,readyEEOrientation,readyEEPosition),[0 0 0 1]);
-            ur3Robot.model.base = ur3Robot.model.base * trotz(-pi/2);
-            ur3Robot.model.base = ur3Robot.model.base*transl(0,0.5,0.575);
+            % Move from zero position to position ready to spray
+            ur3Robot.base = ur3Robot.base * trotz(-pi/2);
+            ur3Robot.base = ur3Robot.base*transl(0,0.5,0.575);
             steps = 20;
-            q1 = ur3Robot.model.getpos();
+            q1 = ur3Robot.getpos();
             q2 = [0 -pi/2 pi/2 pi 0 0];
             
             qMatrix = jtraj(q1,q2,steps);
             
             for i = 1:steps
-                ur3Robot.model.animate(qMatrix(i,:));
+                ur3Robot.animate(qMatrix(i,:));
                 pause(0.01);
             end
-        end
+        end        
 
         function readyRealUR3(obj, client, goal, jointStateSubscriber)
             % Move from zero position to position ready to spray
@@ -263,7 +299,7 @@ classdef SprayPaintingBots
             % readyEEOrientation = eul2rotm(readyEEAngles);
             % T2 = cat(1,cat(2,readyEEOrientation,readyEEPosition),[0 0 0 1]);
             % steps = 20;
-            % q1 = ur3Robot.model.getpos();
+            % q1 = ur3Robot.getpos();
             q2 = [0 -pi/2 pi/2 pi 0 0];
             
             [startJointSend, currentJointState_123456] = UR3PoseCallback(obj, jointStateSubscriber);
@@ -385,10 +421,10 @@ classdef SprayPaintingBots
                 end
                 % Spray the paper at all points
                 for j = 1:numPaperPoints
-                    q1 = ur3Robot.model.getpos();
-                    TR1 = ur3Robot.model.fkine(q1);
+                    q1 = ur3Robot.getpos();
+                    TR1 = ur3Robot.fkine(q1);
                     TR2 = paperPointsAll(:,:,j);
-                    q2 = ur3Robot.model.ikcon(TR2, q1); % , q1, [1 1 1 0 1 1]
+                    q2 = ur3Robot.ikcon(TR2, q1); % , q1, [1 1 1 0 1 1]
                     nextJointState_123456(:,:,j) = q2;
                     
 %                     qMatrix = jtraj(q1,q2,steps);
@@ -398,24 +434,24 @@ classdef SprayPaintingBots
                     end
                     movementStart = tic;
                     for i = 1:steps
-                        ur3Robot.model.animate(qMatrix(i,:));
+                        ur3Robot.animate(qMatrix(i,:));
                         pause(0.1);
                     end
                     movementDuration(:,j) = toc(movementStart);
-                    EEPose = ur3Robot.model.fkine(ur3Robot.model.getpos());
+                    EEPose = ur3Robot.fkine(ur3Robot.getpos());
                     errorMarginPos = TR2(1:3,4)-EEPose(1:3,4)
                     errorMarginRot = rotm2eul(TR2(1:3,1:3))-rotm2eul(EEPose(1:3,1:3))
                  end
                 
                 % Return to ready and wait for next paper
-                q1 = ur3Robot.model.getpos();
+                q1 = ur3Robot.getpos();
                 q2 = [0 -pi/2 pi/2 pi 0 0];
                 
                 qMatrix = jtraj(q1,q2,steps);
                 
                 movementStart = tic;
                 for i = 1:steps
-                    ur3Robot.model.animate(qMatrix(i,:));
+                    ur3Robot.animate(qMatrix(i,:));
                     pause(0.1);
                 end
                 movementDuration(:,j+1) = toc(movementStart);
@@ -428,10 +464,10 @@ classdef SprayPaintingBots
             numPaperPoints = 6;
             % Spray the paper at all points
             for j = 1:numPaperPoints
-%                 q1 = ur3Robot.model.getpos();
-%                 TR1 = ur3Robot.model.fkine(q1);
+%                 q1 = ur3Robot.getpos();
+%                 TR1 = ur3Robot.fkine(q1);
 %                 TR2 = paperPointsAll(:,:,j);
-%                 q2 = ur3Robot.model.ikcon(TR2, q1); % , q1, [1 1 1 0 1 1]
+%                 q2 = ur3Robot.ikcon(TR2, q1); % , q1, [1 1 1 0 1 1]
 
                 [startJointSend, currentJointState_123456] = UR3PoseCallback(obj, jointStateSubscriber);
                 disp(currentJointState_123456)
@@ -442,13 +478,13 @@ classdef SprayPaintingBots
                 goal.Trajectory.Header.Stamp = jointStateSubscriber.LatestMessage.Header.Stamp + rosduration(obj.bufferSeconds);
                 sendGoal(client,goal);
                 pause(movementDuration(:,j));
-%                 EEPose = ur3Robot.model.fkine(ur3Robot.model.getpos());
+%                 EEPose = ur3Robot.fkine(ur3Robot.getpos());
 %                 errorMarginPos = TR2(1:3,4)-EEPose(1:3,4)
 %                 errorMarginRot = rotm2eul(TR2(1:3,1:3))-rotm2eul(EEPose(1:3,1:3))
              end
             
             % Return to ready and wait for next paper
-%             q1 = ur3Robot.model.getpos();
+%             q1 = ur3Robot.getpos();
             q2 = [0 -pi/2 pi/2 pi 0 0];
             [startJointSend, currentJointState_123456] = UR3PoseCallback(obj, jointStateSubscriber);
             disp(currentJointState_123456)
