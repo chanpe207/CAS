@@ -193,8 +193,8 @@ classdef SprayPaintingBots
             PlotAndColourRobot(auboi3Robot, workspace);
 
             hold on
-            ur3Robot = GetUR3(obj);
             paperModel = GetPaperModel(obj);
+            ur3Robot = GetUR3(obj);
             mesh_environment = PlaceObject('decimated_enviroment.PLY');
             vertices = get(mesh_environment,'Vertices');
             transformedVertices = [vertices,ones(size(vertices,1),1)] * transl(-2,0,0)';
@@ -314,18 +314,17 @@ classdef SprayPaintingBots
             sendGoal(client,goal);
         end
 
-        function MovetoPaperAuboi3Sim(obj, auboi3Robot, paperPose)
+        function MovetoPaperAuboi3Sim(obj, auboi3Robot, paperPose, paperModel)
             x = obj.paperPickupCoords(1);
             y = obj.paperPickupCoords(2);
             z = obj.paperPickupCoords(3);
-            EEPose = auboi3Robot.fkine(auboi3Robot.getpos());
             T2 = [1 0 0 x; 0 -1 0 y; 0 0 -1 z+0.1865; 0 0 0 1];
 
             steps = 20;
 
             q1_hardcoded = auboi3Robot.getpos();
             q2_hardcoded = auboi3Robot.ikcon(T2,q1_hardcoded);
-            qMatrix = jtraj(q1_hardcoded,q2_hardcoded,steps)
+            qMatrix = jtraj(q1_hardcoded,q2_hardcoded,steps);
 
             for i = 1:steps
                 auboi3Robot.animate(qMatrix(i,:));
@@ -341,17 +340,20 @@ classdef SprayPaintingBots
 
             q1_hardcoded = auboi3Robot.getpos();
             q2_hardcoded = auboi3Robot.ikcon(T2,q1_hardcoded);
-            qMatrix = jtraj(q1_hardcoded,q2_hardcoded,steps)
+            qMatrix = jtraj(q1_hardcoded,q2_hardcoded,steps);
 
             for i = 1:steps
                 auboi3Robot.animate(qMatrix(i,:));
+                EEPose = auboi3Robot.fkine(auboi3Robot.getpos());
+                paperModel.base = EEPose*transl(0,0,0.1865);
+                paperModel.animate(0);
                 drawnow()
                 pause(0.2)
             end
             
         end
 
-        function PutDownPaperAuboi3Sim(obj, auboi3Robot)
+        function PutDownPaperAuboi3Sim(obj, auboi3Robot, paperModel)
             % First go to zero position
 
             steps = 20;
@@ -365,6 +367,9 @@ classdef SprayPaintingBots
 
             for i = 1:steps
                 auboi3Robot.animate(qMatrix(i,:));
+                EEPose = auboi3Robot.fkine(auboi3Robot.getpos());
+                paperModel.base = EEPose*transl(0,0,0.1865);
+                paperModel.animate(0);
                 drawnow()
                 pause(0.2)
             end
@@ -373,7 +378,6 @@ classdef SprayPaintingBots
             x = obj.paperPutdownCoords(1);
             y = obj.paperPutdownCoords(2);
             z = obj.paperPutdownCoords(3);
-%             EEPose = auboi3Robot.fkine(auboi3Robot.getpos());
             T2 = [1 0 0 x; 0 -1 0 y; 0 0 -1 z+0.1865; 0 0 0 1];
 
             steps = 20;
@@ -387,6 +391,9 @@ classdef SprayPaintingBots
 
             for i = 1:steps
                 auboi3Robot.animate(qMatrix(i,:));
+                EEPose = auboi3Robot.fkine(auboi3Robot.getpos());
+                paperModel.base = EEPose*transl(0,0,0.1865);
+                paperModel.animate(0);
                 drawnow()
                 pause(0.2)
             end
