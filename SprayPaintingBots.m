@@ -38,21 +38,15 @@ classdef SprayPaintingBots
 
         end
 
-        function StartWorkFlow(obj)
-            
-%             depthMsg = CameraDepthCallback(obj);
-%             rbgImgMsg = receive(obj.CameraRgbSub);
-%             [markerPresent,paperPose] = AnalyseImage(obj, rgbImgMsg, depthMsg, ur3Pose);
+        function StartRealUR3(obj)
+
+            rosinit('192.168.0.253');
             jointStateSubscriber = rossubscriber('joint_states','sensor_msgs/JointState');
             pause(2);
 
-            paperPose = eye(4,4);
-            paperPose = paperPose*transl(-0.3035,0,0.857);
-            paperCornersAll = GetPaperCorners(obj, paperPose);
-            
             jointNames = {'shoulder_pan_joint','shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint'};
             pause(2);
-            
+
             [client, goal] = rosactionclient('/scaled_pos_joint_traj_controller/follow_joint_trajectory');
             pause(2);
             goal.Trajectory.JointNames = jointNames;
@@ -60,14 +54,21 @@ classdef SprayPaintingBots
             goal.Trajectory.Header.Stamp = rostime('Now','system');
             goal.GoalTimeTolerance = rosduration(0.05);
 
-            clf
-            [auboi3Robot, ur3Robot] = PlotSprayPaintEnvironment(obj)
-            [nextJointState_123456, movementDuration] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, 0)
+%             depthMsg = CameraDepthCallback(obj);
+%             rbgImgMsg = receive(obj.CameraRgbSub);
+%             [markerPresent,paperPose] = AnalyseImage(obj, rgbImgMsg, depthMsg, ur3Pose);
+            if markerPresent && ~isnan(paperPose.Position.X)
+                paperCornersAll = GetPaperCorners(obj, paperPose);
 
-            [startJointSend, currentJointState_123456] = UR3PoseCallback(obj, jointStateSubscriber);
-            [goal] = UR3GetTrajectory(obj, startJointSend, nextJointState_123456, goal);
-            readyRealUR3(obj, client, goal, jointStateSubscriber);
-            SprayPaintUR3Real(obj, nextJointState_123456, client, goal, jointStateSubscriber, movementDuration)
+                clf
+                [auboi3Robot, ur3Robot, paperModel] = PlotSprayPaintEnvironment(obj)
+                [nextJointState_123456, movementDuration] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, 0)
+
+                [startJointSend, currentJointState_123456] = UR3PoseCallback(obj, jointStateSubscriber);
+                [goal] = UR3GetTrajectory(obj, startJointSend, nextJointState_123456, goal);
+                readyRealUR3(obj, client, goal, jointStateSubscriber);
+                SprayPaintUR3Real(obj, nextJointState_123456, client, goal, jointStateSubscriber, movementDuration)
+            end
 
 
 
@@ -185,7 +186,7 @@ classdef SprayPaintingBots
             goal.Trajectory.Points = [startJointSend; endJointSend];
         end
 
-        function [auboi3Robot, ur3Robot] = PlotSprayPaintEnvironment(obj)
+        function [auboi3Robot, ur3Robot, paperModel] = PlotSprayPaintEnvironment(obj)
             workspace = [4 -4 4 -4 3 0];
 
             auboi3Robot = GetAuboi3();
@@ -193,6 +194,7 @@ classdef SprayPaintingBots
 
             hold on
             ur3Robot = GetUR3(obj);
+            paperModel = GetPaperModel(obj);
             mesh_environment = PlaceObject('decimated_enviroment.PLY');
             vertices = get(mesh_environment,'Vertices');
             transformedVertices = [vertices,ones(size(vertices,1),1)] * transl(-2,0,0)';
@@ -217,10 +219,10 @@ classdef SprayPaintingBots
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
 
-            topLeft = paperPose*transl(0,obj.paperSize(1)/2,obj.paperSize(2)/2);
-            topRight = paperPose*transl(0,-obj.paperSize(1)/2,obj.paperSize(2)/2);
-            bottomLeft = paperPose*transl(0,obj.paperSize(1)/2,-obj.paperSize(2)/2);
-            bottomRight = paperPose*transl(0,-obj.paperSize(1)/2,-obj.paperSize(2)/2);
+            topLeft = paperPose*transl(0,-obj.paperSize(1)/2,obj.paperSize(2)/2);
+            topRight = paperPose*transl(0,obj.paperSize(1)/2,obj.paperSize(2)/2);
+            bottomLeft = paperPose*transl(0,-obj.paperSize(1)/2,-obj.paperSize(2)/2);
+            bottomRight = paperPose*transl(0,obj.paperSize(1)/2,-obj.paperSize(2)/2);
 
             paperCorners = [topLeft; topRight; bottomLeft; bottomRight];
             numPaperCorners = 4;
@@ -312,14 +314,7 @@ classdef SprayPaintingBots
             sendGoal(client,goal);
         end
 
-        function MovePaperAuboi3Sim(obj, auboi3Robot)
-%             q1 = deg2rad(0);
-%             q2 = deg2rad(72);
-%             q3 = deg2rad(6.8);
-%             q4 = deg2rad(12);
-%             q5 = deg2rad(-90);
-%             q6 = deg2rad(90);
-%             T2 = [q1 q2 q3 q4 q5 q6];
+        function MovetoPaperAuboi3Sim(obj, auboi3Robot, paperPose)
             x = obj.paperPickupCoords(1);
             y = obj.paperPickupCoords(2);
             z = obj.paperPickupCoords(3);
@@ -339,7 +334,10 @@ classdef SprayPaintingBots
             end
 
             %Move back to spray
-            T2 = [0 0 1 -0.3035; -1 0 0 0; 0 -1 0 0.857; 0 0 0 1];
+            x = paperPose(1,4);
+            y = paperPose(2,4);
+            z = paperPose(3,4);
+            T2 = [0 0 1 x; -1 0 0 y; 0 -1 0 z; 0 0 0 1];
 
             q1_hardcoded = auboi3Robot.getpos();
             q2_hardcoded = auboi3Robot.ikcon(T2,q1_hardcoded);
@@ -394,13 +392,66 @@ classdef SprayPaintingBots
             end
         end
 
+        function paperModel = GetPaperModel(obj)
+            %creating a simple piece of paper in workspace
+            workspace = [-2 2 -2 2 -1 2];
+            x = obj.paperPickupCoords(1);
+            y = obj.paperPickupCoords(2);
+            z = obj.paperPickupCoords(3);
+
+            name = ['objectPaper1_',datestr(now,'yyyymmddTHHMMSSFFF')];
+
+            L1 = Link([pi 0 0 pi/2 0]);
+            L1.qlim = [-pi pi]; %L1.qlim = [-0.8 0];
+            L1.offset = 0;
+            paperModel = SerialLink(L1,'name',name);
+
+            % model.base =  model.base * trotx(pi/2) * troty(pi/2) * transl([0,0,1]);   %transl matrix [y,z,x]
+            paperModel.base =paperModel.base * transl([x,y,z]);
+
+            % PlotAndColour
+            % Given a robot index, add the glyphs (vertices and faces) and
+            % colour them in if data is available
+            for linkIndex = 0: paperModel.n
+                if  linkIndex ==  paperModel.n
+                    [ faceData, vertexData, plyData{linkIndex + 1} ] = plyread('whiteEnvelope.ply','tri'); % #ok<AGROW>
+                    paperModel.faces{linkIndex + 1} = faceData;
+                    paperModel.points{linkIndex + 1} = vertexData;
+                else
+                end
+
+            end
+
+            % Display
+            paperModel.plot3d(zeros(1, paperModel.n),'noarrow','workspace', workspace);
+            if isempty(findobj(get(gca,'Children'),'Type','Light'))
+                camlight
+            end
+            paperModel.delay = 0;
+            
+            % Try to correctly colour the arm (if colours are in ply file data)
+            for linkIndex = paperModel.n
+                handles = findobj('Tag',  paperModel.name);
+                h = get(handles,'UserData');
+                try
+                    h.link(linkIndex+1).Children.FaceVertexCData = [plyData{linkIndex+1}.vertex.red ...
+                        , plyData{linkIndex+1}.vertex.green ...
+                        , plyData{linkIndex+1}.vertex.blue]/255;
+                    h.link(linkIndex+1).Children.FaceColor = 'interp';
+                catch ME_1
+                    disp(ME_1);
+                    continue;
+                end
+            end
+        end
+
         function [nextJointState_123456, movementDuration] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, paperMoving)            
             % Begin when paper is detected and not moving
             steps = 20;
             movementDuration = ones(1,7)*obj.durationSeconds;
             if paperMoving == 0
                 % Translate paper corners away from paper by x distance
-                distanceFromPaper = 0.2;
+                distanceFromPaper = 0.2+0.1903; % spray distance + reach of end effector with spray can attached
                 goalTopLeft = paperCornersAll(:,:,1)*transl(distanceFromPaper,0,0);
                 goalTopRight = paperCornersAll(:,:,2)*transl(distanceFromPaper,0,0);
                 goalBottomLeft = paperCornersAll(:,:,3)*transl(distanceFromPaper,0,0);
@@ -408,7 +459,7 @@ classdef SprayPaintingBots
                 
                 % Make two more waypoints in the centre of the paper
                 distx = goalTopRight(1,4)-goalTopLeft(1,4);
-                disty = goalBottomRight(1,4)-goalBottomLeft(1,4);
+                disty = goalBottomRight(2,4)-goalBottomLeft(2,4);
                 goalTopCentre = goalTopLeft*transl(distx/2,disty/2,0);
                 goalBottomCentre = goalBottomLeft*transl(distx/2,disty/2,0);
                 
