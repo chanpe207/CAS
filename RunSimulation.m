@@ -26,6 +26,7 @@ gui.aubo_z=0;
 gui.ur_q1=0;
 gui.ur_q2=0;
 gui.ur_q3=0;
+
 gui.ur_q4=0;
 gui.ur_q5=0;
 gui.ur_q6=0;
