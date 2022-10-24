@@ -314,7 +314,7 @@ classdef SprayPaintingBots
             sendGoal(client,goal);
         end
 
-        function MovetoPaperAuboi3Sim(obj, auboi3Robot, paperPose, paperModel)
+        function MovetoPaperAuboi3Sim(obj, auboi3Robot, paperPose, paperModel, gui, objectCenter, radius)
             x = obj.paperPickupCoords(1);
             y = obj.paperPickupCoords(2);
             z = obj.paperPickupCoords(3);
@@ -327,9 +327,18 @@ classdef SprayPaintingBots
             qMatrix = jtraj(q1_hardcoded,q2_hardcoded,steps);
 
             for i = 1:steps
+                if gui.aubo_stop 
+                    auboi3Robot.animate(auboi3Robot.getpos());
+                    gui.aubo_stop = 1;
+                    while gui.aubo_stop
+                        VisualServo(obj,auboi3Robot,gui.aubo_stop,gui.aubo_x,gui.aubo_y,gui.aubo_z,gui.aubo_q1,gui.aubo_q2,gui.aubo_q3,gui.aubo_q4,gui.aubo_q5,gui.aubo_q6);
+                    end
+                else
                 auboi3Robot.animate(qMatrix(i,:));
                 drawnow()
                 pause(0.2)
+%                 [isCollision] = CollisionCheck(obj,auboi3Robot,objectCenter,radius);
+                end
             end
 
             %Move back to spray
@@ -353,7 +362,7 @@ classdef SprayPaintingBots
             
         end
 
-        function PutDownPaperAuboi3Sim(obj, auboi3Robot, paperModel)
+        function PutDownPaperAuboi3Sim(obj, auboi3Robot, paperModel, gui)
             % First go to zero position
 
             steps = 20;
@@ -390,12 +399,21 @@ classdef SprayPaintingBots
             end
 
             for i = 1:steps
+                if gui.aubo_stop 
+                    auboi3Robot.animate(auboi3Robot.getpos());
+                    gui.aubo_stop = 1;
+                    while gui.aubo_stop
+                        VisualServo(obj,auboi3Robot,gui.aubo_stop,gui.aubo_x,gui.aubo_y,gui.aubo_z,gui.aubo_q1,gui.aubo_q2,gui.aubo_q3,gui.aubo_q4,gui.aubo_q5,gui.aubo_q6);
+                    end
+                else
                 auboi3Robot.animate(qMatrix(i,:));
                 EEPose = auboi3Robot.fkine(auboi3Robot.getpos());
                 paperModel.base = EEPose*transl(0,0,0.1865);
                 paperModel.animate(0);
                 drawnow()
                 pause(0.2)
+%                 [isCollision] = CollisionCheck(obj,auboi3Robot,objectCenter,radius);
+                end
             end
         end
 
@@ -452,7 +470,7 @@ classdef SprayPaintingBots
             end
         end
 
-        function [nextJointState_123456, movementDuration] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, paperMoving)            
+        function [nextJointState_123456, movementDuration] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, paperMoving, gui)            
             % Begin when paper is detected and not moving
             steps = 20;
             movementDuration = ones(1,7)*obj.durationSeconds;
@@ -492,8 +510,17 @@ classdef SprayPaintingBots
                     end
                     movementStart = tic;
                     for i = 1:steps
-                        ur3Robot.animate(qMatrix(i,:));
-                        pause(0.1);
+                        if gui.ur3_stop 
+                            auboi3Robot.animate(auboi3Robot.getpos());
+                            gui.ur3_stop = 1;
+                            while gui.aubo_stop
+                                VisualServo(obj,ur3Robot,gui.ur3_stop,gui.ur_x,gui.ur_y,gui.ur_z,gui.ur_q1,gui.ur_q2,gui.ur_q3,gui.ur_q4,gui.ur_q5,gui.ur_q6);
+                            end
+                        else
+                            ur3Robot.animate(qMatrix(i,:));
+                            pause(0.1);
+%                             [isCollision] = CollisionCheck(obj,auboi3Robot,objectCenter,radius);
+                        end
                     end
                     movementDuration(:,j) = toc(movementStart);
                     EEPose = ur3Robot.fkine(ur3Robot.getpos());
@@ -509,14 +536,55 @@ classdef SprayPaintingBots
                 
                 movementStart = tic;
                 for i = 1:steps
-                    ur3Robot.animate(qMatrix(i,:));
-                    pause(0.1);
+                    if gui.ur3_stop 
+                        auboi3Robot.animate(auboi3Robot.getpos());
+                        gui.ur3_stop = 1;
+                        while gui.aubo_stop
+                            VisualServo(obj,ur3Robot,gui.ur3_stop,gui.ur_x,gui.ur_y,gui.ur_z,gui.ur_q1,gui.ur_q2,gui.ur_q3,gui.ur_q4,gui.ur_q5,gui.ur_q6);
+                        end
+                    else
+                        ur3Robot.animate(qMatrix(i,:));
+                        pause(0.1);
+%                         [gui.aubo_stop, gui.ur3_stop] = CollisionCheck(obj,auboi3Robot,objectCenter,radius);
+                    end
                 end
                 movementDuration(:,j+1) = toc(movementStart);
             end
         end
 
-        function RMRC(obj, ur3Robot, x, y, z)
+        function [objectCenter,radius] = SpawnSafetySymbol(obj, spawnOn)
+            if spawnOn
+                objectCenter = [-0.5 0.4 1];
+                radius = 0.2;
+                mesh_spray = PlaceObject('spray.ply');
+                vertices = get(mesh_spray,'Vertices');
+                transformedVertices = [vertices,ones(size(vertices,1),1)] * transl(objectCenter)';
+%                 transformedVertices = transformedVertices * trotx(pi/2)';
+                set(mesh_spray,'Vertices',transformedVertices(:,1:3));
+            else
+                objectCenter = [10 10 10];
+                radius = 0.01;
+            end
+        end
+
+        function [isCollision] = CollisionCheck(obj,r,objectCenter,radius) %radius usu. 0.2 %add steps = 20
+            pause(0.1)
+            tr = r.fkine(r.getpos);
+            endEffectorToCenterDist = sqrt(sum((objectCenter-tr(1:3,4)').^2));
+            if endEffectorToCenterDist <= radius
+                disp(['collision detected in ', num2str(endEffectorToCenterDist),'m!!']);
+                isCollision = 1;
+                %     isCollision = 1;
+
+            else
+                disp(['SAFE: End effector to paper object distance (', num2str(endEffectorToCenterDist), 'm)']);
+                %         disp(['SAFE: End effector to centre distance (', num2str(endEffectorToCenterDist), 'm) is more than the sphere radius, ' num2str(radius), 'm']);
+                %     isCollision = 0;
+                isCollision = 0;
+            end
+        end
+
+        function VisualServo(obj, robot, eStop, x, y, z, q1, q2, q3, q4, q5, q6)
             % 1.1) Set parameters for the simulation
             t = 10;             % Total time (s)
             deltaT = 0.2;      % Control frequency
@@ -535,115 +603,122 @@ classdef SprayPaintingBots
             angleError = zeros(3,steps);    % For plotting trajectory error
 
             % Set up a trajectory using the cartesian points or the joint values
-            q1 = ur3Robot.getpos();
-            TR1 = ur3Robot.fkine(q1);
+            q1 = robot.getpos();
+            TR1 = robot.fkine(q1);
             TR2 = TR1;
             TR2(1:3,4) = [x y z];
             angles = rotm2eul(TR1(1:3,1:3));
 
-            % straight line motion
-            s = lspb(0,1,steps);        % Trapezoidal trajectory scalar
-            for i = 1:steps
-                position(1,i) = TR1(1,4) + s(i)*((TR2(1,4)-TR1(1,4)));   % Points in x
-                position(2,i) = TR1(2,4) + s(i)*((TR2(2,4)-TR1(2,4)));   % Points in y
-                position(3,i) = TR1(3,4) + s(i)*((TR2(3,4)-TR1(3,4)));   % Points in z
-                theta(1,i) = angles(3);                                 % Roll angle
-                theta(2,i) = angles(2);                                 % Pitch angle
-                theta(3,i) = angles(1);                                 % Yaw angle
-            end
+            % if robot is already at position within a margin of error,
+            % don't move again
+            errorMargin = 0.05;
+            if abs(TR1(1,4)-x)>errorMargin && abs(TR1(2,4)-y)>errorMargin && abs(TR1(3,4)-z)>errorMargin
 
-
-            % % 1.3) Set up trajectory, initial pose
-            % s = lspb(0,1,steps);                % Trapezoidal trajectory scalar
-            % for i=1:steps
-            %     x(1,i) = (1-s(i))*0.35 + s(i)*0.35; % Points in x
-            %     x(2,i) = (1-s(i))*-0.55 + s(i)*0.55; % Points in y
-            %     x(3,i) = 0.5 + 0.2*sin(i*delta); % Points in z
-            %     theta(1,i) = 0;                 % Roll angle
-            %     theta(2,i) = 5*pi/9;            % Pitch angle
-            %     theta(3,i) = 0;                 % Yaw angle
-            % end
-
-            T = [rpy2r(theta(1,1),theta(2,1),theta(3,1)) position(:,1);zeros(1,3) 1];          % Create transformation of first point and angle
-            q0 = zeros(1,6);                                                            % Initial guess for joint angles
-            qMatrix(1,:) = ur3Robot.ikcon(T,q1);                                            % Solve joint angles to achieve first waypoint
-
-            % 1.4) Track the trajectory with RMRC
-            for i = 1:steps-1
-                T = ur3Robot.fkine(qMatrix(i,:));                                           % Get forward transformation at current joint state
-                deltaX = position(:,i+1) - T(1:3,4);                                         	% Get position error from next waypoint
-                Rd = rpy2r(theta(1,i+1),theta(2,i+1),theta(3,i+1));                     % Get next RPY angles, convert to rotation matrix
-                Ra = T(1:3,1:3);                                                        % Current end-effector rotation matrix
-                Rdot = (1/deltaT)*(Rd - Ra);                                                % Calculate rotation matrix error
-                S = Rdot*Ra';                                                           % Skew symmetric!
-                linear_velocity = (1/deltaT)*deltaX;
-                angular_velocity = [S(3,2);S(1,3);S(2,1)];                              % Check the structure of Skew Symmetric matrix!!
-                deltaTheta = tr2rpy(Rd*Ra');                                            % Convert rotation matrix to RPY angles
-                xdot = W*[linear_velocity;angular_velocity];                          	% Calculate end-effector velocity to reach next waypoint.
-                J = ur3Robot.jacob0(qMatrix(i,:));                 % Get Jacobian at current joint state
-                m(i) = sqrt(det(J*J'));
-                if m(i) < epsilon  % If manipulability is less than given threshold
-                    lambda = (1 - m(i)/epsilon)*5E-2;
-                else
-                    lambda = 0;
+                % straight line motion
+                s = lspb(0,1,steps);        % Trapezoidal trajectory scalar
+                for i = 1:steps
+                    position(1,i) = TR1(1,4) + s(i)*((TR2(1,4)-TR1(1,4)));   % Points in x
+                    position(2,i) = TR1(2,4) + s(i)*((TR2(2,4)-TR1(2,4)));   % Points in y
+                    position(3,i) = TR1(3,4) + s(i)*((TR2(3,4)-TR1(3,4)));   % Points in z
+                    theta(1,i) = angles(3);                                 % Roll angle
+                    theta(2,i) = angles(2);                                 % Pitch angle
+                    theta(3,i) = angles(1);                                 % Yaw angle
                 end
-                invJ = inv(J'*J + lambda *eye(6))*J';                                   % DLS Inverse
-                qdot(i,:) = (invJ*xdot)';                                                % Solve the RMRC equation (you may need to transpose the         vector)
-                for j = 1:6                                                             % Loop through joints 1 to 6
-                    if qMatrix(i,j) + deltaT*qdot(i,j) < ur3Robot.qlim(j,1)                     % If next joint angle is lower than joint limit...
-                        qdot(i,j) = 0; % Stop the motor
-                    elseif qMatrix(i,j) + deltaT*qdot(i,j) > ur3Robot.qlim(j,2)                 % If next joint angle is greater than joint limit ...
-                        qdot(i,j) = 0; % Stop the motor
+
+
+                % % 1.3) Set up trajectory, initial pose
+                % s = lspb(0,1,steps);                % Trapezoidal trajectory scalar
+                % for i=1:steps
+                %     x(1,i) = (1-s(i))*0.35 + s(i)*0.35; % Points in x
+                %     x(2,i) = (1-s(i))*-0.55 + s(i)*0.55; % Points in y
+                %     x(3,i) = 0.5 + 0.2*sin(i*delta); % Points in z
+                %     theta(1,i) = 0;                 % Roll angle
+                %     theta(2,i) = 5*pi/9;            % Pitch angle
+                %     theta(3,i) = 0;                 % Yaw angle
+                % end
+
+                T = [rpy2r(theta(1,1),theta(2,1),theta(3,1)) position(:,1);zeros(1,3) 1];          % Create transformation of first point and angle
+                q0 = zeros(1,6);                                                            % Initial guess for joint angles
+                qMatrix(1,:) = robot.ikcon(T,q1);                                            % Solve joint angles to achieve first waypoint
+
+                % 1.4) Track the trajectory with RMRC
+                for i = 1:steps-1
+                    T = robot.fkine(qMatrix(i,:));                                           % Get forward transformation at current joint state
+                    deltaX = position(:,i+1) - T(1:3,4);                                         	% Get position error from next waypoint
+                    Rd = rpy2r(theta(1,i+1),theta(2,i+1),theta(3,i+1));                     % Get next RPY angles, convert to rotation matrix
+                    Ra = T(1:3,1:3);                                                        % Current end-effector rotation matrix
+                    Rdot = (1/deltaT)*(Rd - Ra);                                                % Calculate rotation matrix error
+                    S = Rdot*Ra';                                                           % Skew symmetric!
+                    linear_velocity = (1/deltaT)*deltaX;
+                    angular_velocity = [S(3,2);S(1,3);S(2,1)];                              % Check the structure of Skew Symmetric matrix!!
+                    deltaTheta = tr2rpy(Rd*Ra');                                            % Convert rotation matrix to RPY angles
+                    xdot = W*[linear_velocity;angular_velocity];                          	% Calculate end-effector velocity to reach next waypoint.
+                    J = robot.jacob0(qMatrix(i,:));                 % Get Jacobian at current joint state
+                    m(i) = sqrt(det(J*J'));
+                    if m(i) < epsilon  % If manipulability is less than given threshold
+                        lambda = (1 - m(i)/epsilon)*5E-2;
+                    else
+                        lambda = 0;
                     end
+                    invJ = inv(J'*J + lambda *eye(6))*J';                                   % DLS Inverse
+                    qdot(i,:) = (invJ*xdot)';                                                % Solve the RMRC equation (you may need to transpose the         vector)
+                    for j = 1:6                                                             % Loop through joints 1 to 6
+                        if qMatrix(i,j) + deltaT*qdot(i,j) < robot.qlim(j,1)                     % If next joint angle is lower than joint limit...
+                            qdot(i,j) = 0; % Stop the motor
+                        elseif qMatrix(i,j) + deltaT*qdot(i,j) > robot.qlim(j,2)                 % If next joint angle is greater than joint limit ...
+                            qdot(i,j) = 0; % Stop the motor
+                        end
+                    end
+                    qMatrix(i+1,:) = qMatrix(i,:) + deltaT*qdot(i,:);                         	% Update next joint state based on joint velocities
+                    positionError(:,i) = position(:,i+1) - T(1:3,4);                               % For plotting
+                    angleError(:,i) = deltaTheta;                                           % For plotting
                 end
-                qMatrix(i+1,:) = qMatrix(i,:) + deltaT*qdot(i,:);                         	% Update next joint state based on joint velocities
-                positionError(:,i) = position(:,i+1) - T(1:3,4);                               % For plotting
-                angleError(:,i) = deltaTheta;                                           % For plotting
+
+                % 1.5) Plot the results
+                %             figure(1)
+                %             plot3(position(1,:),position(2,:),position(3,:),'k.','LineWidth',1)
+                for i = 1:steps
+                    robot.animate(qMatrix(i,:))
+                    pause(0.01)
+                end
+                %             for i = 1:6
+                %                 figure(2)
+                %                 subplot(3,2,i)
+                %                 plot(qMatrix(:,i),'k','LineWidth',1)
+                %                 title(['Joint ', num2str(i)])
+                %                 ylabel('Angle (rad)')
+                %                 refline(0,robot.qlim(i,1));
+                %                 refline(0,robot.qlim(i,2));
+                %
+                %                 figure(3)
+                %                 subplot(3,2,i)
+                %                 plot(qdot(:,i),'k','LineWidth',1)
+                %                 title(['Joint ',num2str(i)]);
+                %                 ylabel('Velocity (rad/s)')
+                %                 refline(0,0)
+                %             end
+                %
+                %             figure(4)
+                %             subplot(2,1,1)
+                %             plot(positionError'*1000,'LineWidth',1)
+                %             refline(0,0)
+                %             xlabel('Step')
+                %             ylabel('Position Error (mm)')
+                %             legend('X-Axis','Y-Axis','Z-Axis')
+                %
+                %             subplot(2,1,2)
+                %             plot(angleError','LineWidth',1)
+                %             refline(0,0)
+                %             xlabel('Step')
+                %             ylabel('Angle Error (rad)')
+                %             legend('Roll','Pitch','Yaw')
+                %             figure(5)
+                %             plot(m,'k','LineWidth',1)
+                %             refline(0,epsilon)
+                %             title('Manipulability')
+            else
+                %don't move
             end
-
-            % 1.5) Plot the results
-            figure(1)
-            plot3(position(1,:),position(2,:),position(3,:),'k.','LineWidth',1)
-            for i = 1:steps
-                ur3Robot.animate(qMatrix(i,:))
-                pause(0.01)
-            end
-
-            for i = 1:6
-                figure(2)
-                subplot(3,2,i)
-                plot(qMatrix(:,i),'k','LineWidth',1)
-                title(['Joint ', num2str(i)])
-                ylabel('Angle (rad)')
-                refline(0,ur3Robot.qlim(i,1));
-                refline(0,ur3Robot.qlim(i,2));
-
-                figure(3)
-                subplot(3,2,i)
-                plot(qdot(:,i),'k','LineWidth',1)
-                title(['Joint ',num2str(i)]);
-                ylabel('Velocity (rad/s)')
-                refline(0,0)
-            end
-
-            figure(4)
-            subplot(2,1,1)
-            plot(positionError'*1000,'LineWidth',1)
-            refline(0,0)
-            xlabel('Step')
-            ylabel('Position Error (mm)')
-            legend('X-Axis','Y-Axis','Z-Axis')
-
-            subplot(2,1,2)
-            plot(angleError','LineWidth',1)
-            refline(0,0)
-            xlabel('Step')
-            ylabel('Angle Error (rad)')
-            legend('Roll','Pitch','Yaw')
-            figure(5)
-            plot(m,'k','LineWidth',1)
-            refline(0,epsilon)
-            title('Manipulability')
         end
 
         %% Do Collision Detection!!!
