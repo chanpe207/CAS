@@ -720,6 +720,7 @@ classdef SprayPaintingBots
                 %don't move
             end
         end
+        
         function RMRC(obj, robot, x, y, z)
             % 1.1) Set parameters for the simulation
             t = 10;             % Total time (s)
@@ -800,8 +801,7 @@ classdef SprayPaintingBots
                 pause(0.01)
             end
         end
-        %% Do Collision Detection!!!
-
+        
         function SprayPaintUR3Real(obj, nextJointState_123456, client, goal, jointStateSubscriber, movementDuration) 
             numPaperPoints = 6;
             % Spray the paper at all points
