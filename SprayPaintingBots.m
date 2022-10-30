@@ -433,17 +433,30 @@ classdef SprayPaintingBots
                 if gui.aubo_stop 
                     auboi3Robot.animate(auboi3Robot.getpos());
                     gui.aubo_stop = 1;
+                    TR=auboi3Robot.fkine(auboi3Robot.getpos());
+                    paperModel.base = TR*transl(0,0,0.1865);
+                    paperModel.animate(0);
+                    gui.aubo_x = TR(1,4);
+                    gui.aubo_y = TR(2,4);
+                    gui.aubo_z = TR(3,4);
                     while gui.aubo_stop
+                        pause(0.5)
                         VisualServo(obj,auboi3Robot,gui.aubo_stop,gui.aubo_x,gui.aubo_y,gui.aubo_z,gui.aubo_q1,gui.aubo_q2,gui.aubo_q3,gui.aubo_q4,gui.aubo_q5,gui.aubo_q6);
+                        TR=auboi3Robot.fkine(auboi3Robot.getpos());
+                        paperModel.base = TR*transl(0,0,0.1865);
+                        paperModel.animate(0);
+                        q1_hardcoded = auboi3Robot.getpos();
+                        q2_hardcoded = auboi3Robot.ikcon(T2,q1_hardcoded);
+                        qMatrix = jtraj(q1_hardcoded,q2_hardcoded,steps);
+                        i=1;
                     end
                 else
-                auboi3Robot.animate(qMatrix(i,:));
-                EEPose = auboi3Robot.fkine(auboi3Robot.getpos());
-                paperModel.base = EEPose*transl(0,0,0.1865);
-                paperModel.animate(0);
-                drawnow()
-                pause(0.2)
-%                 [isCollision] = CollisionCheck(obj,auboi3Robot,objectCenter,radius);
+                    auboi3Robot.animate(qMatrix(i,:));
+                    EEPose = auboi3Robot.fkine(auboi3Robot.getpos());
+                    paperModel.base = EEPose*transl(0,0,0.1865);
+                    paperModel.animate(0);
+                    drawnow()
+                    pause(0.2)
                 end
             end
         end
