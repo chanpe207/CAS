@@ -1,13 +1,15 @@
-function auboCollisionCheck(r,objectCenter,radius)%radius usu. 0.2 %add steps = 20
+function estop = auboCollisionCheck(r,objectCenter,radius,estop)%radius usu. 0.2 %add steps = 20
     pause(0.1)
     tr = r.fkine(r.getpos);
-    endEffectorToCenterDist = sqrt(sum((objectCenter-tr(1:3,4)').^2));
+    EE = tr*transl(0,0,0.1865);
+    endEffectorToCenterDist = sqrt(sum((objectCenter-EE(1:3,4)').^2));
     if endEffectorToCenterDist <= radius
         disp(['collision detected in ', num2str(endEffectorToCenterDist),'m!!']);
         %     isCollision = 1;
+        estop = 1;
         
     else
-        disp(['SAFE: End effector to paper object distance (', num2str(endEffectorToCenterDist), 'm)']);
+        disp(['SAFE: End effector to spraycan distance (', num2str(endEffectorToCenterDist), 'm)']);
 %         disp(['SAFE: End effector to centre distance (', num2str(endEffectorToCenterDist), 'm) is more than the sphere radius, ' num2str(radius), 'm']);
         %     isCollision = 0;
         

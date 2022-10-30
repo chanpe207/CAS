@@ -346,7 +346,7 @@ classdef SprayPaintingBots
                     auboi3Robot.animate(qMatrix(i,:));
                     drawnow()
                     pause(0.2)
-                    % [isCollision] = CollisionCheck(obj,auboi3Robot,objectCenter,radius);
+                    gui.aubo_stop = auboCollisionCheck(auboi3Robot,objectCenter,radius,gui.aubo_stop);
                 end
             end
 
@@ -388,12 +388,13 @@ classdef SprayPaintingBots
                     paperModel.animate(0);
                     drawnow()
                     pause(0.2)
+                    gui.aubo_stop = auboCollisionCheck(auboi3Robot,objectCenter,radius,gui.aubo_stop);
                 end
             end
             
         end
 
-        function PutDownPaperAuboi3Sim(obj, auboi3Robot, paperModel, gui)
+        function PutDownPaperAuboi3Sim(obj, auboi3Robot, paperModel, gui,objectCenter,radius)
             % First go to zero position
 
             steps = 20;
@@ -433,6 +434,7 @@ classdef SprayPaintingBots
                     paperModel.animate(0);
                     drawnow()
                     pause(0.2)
+                    gui.aubo_stop = auboCollisionCheck(auboi3Robot,objectCenter,radius,gui.aubo_stop);
                 end
             end
 
@@ -479,6 +481,7 @@ classdef SprayPaintingBots
                     paperModel.animate(0);
                     drawnow()
                     pause(0.2)
+                    gui.aubo_stop = auboCollisionCheck(auboi3Robot,objectCenter,radius,gui.aubo_stop);
                 end
             end
         end
@@ -536,7 +539,7 @@ classdef SprayPaintingBots
             end
         end
 
-        function [nextJointState_123456, movementDuration] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, paperMoving, gui)            
+        function [nextJointState_123456, movementDuration] = SprayPaintUR3Sim(obj, ur3Robot, paperCornersAll, paperMoving, gui,objectCenter,radius)            
             % Begin when paper is detected and not moving
             steps = 20;
             movementDuration = ones(1,7)*obj.durationSeconds;
@@ -596,7 +599,7 @@ classdef SprayPaintingBots
                         else
                             ur3Robot.animate(qMatrix(i,:));
                             pause(0.1);
-%                             [isCollision] = CollisionCheck(obj,auboi3Robot,objectCenter,radius);
+                            gui.ur3_stop = auboCollisionCheck(ur3Robot,objectCenter,radius,gui.ur3_stop);
                         end
                     end
                     movementDuration(:,j) = toc(movementStart);
@@ -633,17 +636,15 @@ classdef SprayPaintingBots
                     else
                         ur3Robot.animate(qMatrix(i,:));
                         pause(0.1);
-                        % [gui.aubo_stop, gui.ur3_stop] = CollisionCheck(obj,auboi3Robot,objectCenter,radius);
+                        gui.ur3_stop = auboCollisionCheck(ur3Robot,objectCenter,radius,gui.ur3_stop);
                     end
                 end
                 movementDuration(:,j+1) = toc(movementStart);
             end
         end
 
-        function [objectCenter,radius] = SpawnSafetySymbol(obj, spawnOn)
+        function [objectCenter,radius] = SpawnSafetySymbol(obj, spawnOn,objectCenter,radius)
             if spawnOn
-                objectCenter = [-0.5 0.4 1];
-                radius = 0.2;
                 mesh_spray = PlaceObject('spray.ply');
                 vertices = get(mesh_spray,'Vertices');
                 transformedVertices = [vertices,ones(size(vertices,1),1)] * transl(objectCenter)';
