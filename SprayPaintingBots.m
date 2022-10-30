@@ -330,14 +330,23 @@ classdef SprayPaintingBots
                 if gui.aubo_stop 
                     auboi3Robot.animate(auboi3Robot.getpos());
                     gui.aubo_stop = 1;
+                    TR=auboi3Robot.fkine(auboi3Robot.getpos());
+                    gui.aubo_x = TR(1,4);
+                    gui.aubo_y = TR(2,4);
+                    gui.aubo_z = TR(3,4);
                     while gui.aubo_stop
+                        pause(0.5)
                         VisualServo(obj,auboi3Robot,gui.aubo_stop,gui.aubo_x,gui.aubo_y,gui.aubo_z,gui.aubo_q1,gui.aubo_q2,gui.aubo_q3,gui.aubo_q4,gui.aubo_q5,gui.aubo_q6);
+                        q1_hardcoded = auboi3Robot.getpos();
+                        q2_hardcoded = auboi3Robot.ikcon(T2,q1_hardcoded);
+                        qMatrix = jtraj(q1_hardcoded,q2_hardcoded,steps);
+                        i=1;
                     end
                 else
-                auboi3Robot.animate(qMatrix(i,:));
-                drawnow()
-                pause(0.2)
-%                 [isCollision] = CollisionCheck(obj,auboi3Robot,objectCenter,radius);
+                    auboi3Robot.animate(qMatrix(i,:));
+                    drawnow()
+                    pause(0.2)
+                    % [isCollision] = CollisionCheck(obj,auboi3Robot,objectCenter,radius);
                 end
             end
 
@@ -352,12 +361,34 @@ classdef SprayPaintingBots
             qMatrix = jtraj(q1_hardcoded,q2_hardcoded,steps);
 
             for i = 1:steps
-                auboi3Robot.animate(qMatrix(i,:));
-                EEPose = auboi3Robot.fkine(auboi3Robot.getpos());
-                paperModel.base = EEPose*transl(0,0,0.1865);
-                paperModel.animate(0);
-                drawnow()
-                pause(0.2)
+                if gui.aubo_stop 
+                    auboi3Robot.animate(auboi3Robot.getpos());
+                    gui.aubo_stop = 1;
+                    TR=auboi3Robot.fkine(auboi3Robot.getpos());
+                    paperModel.base = TR*transl(0,0,0.1865);
+                    paperModel.animate(0);
+                    gui.aubo_x = TR(1,4);
+                    gui.aubo_y = TR(2,4);
+                    gui.aubo_z = TR(3,4);
+                    while gui.aubo_stop
+                        pause(0.5)
+                        VisualServo(obj,auboi3Robot,gui.aubo_stop,gui.aubo_x,gui.aubo_y,gui.aubo_z,gui.aubo_q1,gui.aubo_q2,gui.aubo_q3,gui.aubo_q4,gui.aubo_q5,gui.aubo_q6);
+                        TR=auboi3Robot.fkine(auboi3Robot.getpos());
+                        paperModel.base = TR*transl(0,0,0.1865);
+                        paperModel.animate(0);
+                        q1_hardcoded = auboi3Robot.getpos();
+                        q2_hardcoded = auboi3Robot.ikcon(T2,q1_hardcoded);
+                        qMatrix = jtraj(q1_hardcoded,q2_hardcoded,steps);
+                        i=1;
+                    end
+                else
+                    auboi3Robot.animate(qMatrix(i,:));
+                    EEPose = auboi3Robot.fkine(auboi3Robot.getpos());
+                    paperModel.base = EEPose*transl(0,0,0.1865);
+                    paperModel.animate(0);
+                    drawnow()
+                    pause(0.2)
+                end
             end
             
         end
@@ -584,14 +615,14 @@ classdef SprayPaintingBots
             end
         end
 
-        function VisualServo(obj, robot, eStop, x, y, z, q1, q2, q3, q4, q5, q6)
+        function VisualServo(obj, robot, eStop, x, y, z, q_1, q_2, q_3, q_4, q_5, q_6)
             % 1.1) Set parameters for the simulation
             t = 10;             % Total time (s)
             deltaT = 0.2;      % Control frequency
             steps = t/deltaT;   % No. of steps for simulation
             delta = 2*pi/steps; % Small angle change
             epsilon = 0.1;      % Threshold value for manipulability/Damped Least Squares
-            W = diag([1 1 1 0.1 0.1 0.1]);    % Weighting matrix for the velocity vector
+            W = diag([1 1 1 1 1 1]);    % Weighting matrix for the velocity vector
 
             % 1.2) Allocate array data
             m = zeros(steps,1);             % Array for Measure of Manipulability
@@ -607,12 +638,12 @@ classdef SprayPaintingBots
             TR1 = robot.fkine(q1);
             TR2 = TR1;
             TR2(1:3,4) = [x y z];
-            angles = rotm2eul(TR1(1:3,1:3));
+            angles = tr2rpy(TR1);
 
             % if robot is already at position within a margin of error,
             % don't move again
             errorMargin = 0.05;
-            if abs(TR1(1,4)-x)>errorMargin && abs(TR1(2,4)-y)>errorMargin && abs(TR1(3,4)-z)>errorMargin
+            if abs(TR1(1,4)-x)>errorMargin || abs(TR1(2,4)-y)>errorMargin || abs(TR1(3,4)-z)>errorMargin
 
                 % straight line motion
                 s = lspb(0,1,steps);        % Trapezoidal trajectory scalar
@@ -620,9 +651,9 @@ classdef SprayPaintingBots
                     position(1,i) = TR1(1,4) + s(i)*((TR2(1,4)-TR1(1,4)));   % Points in x
                     position(2,i) = TR1(2,4) + s(i)*((TR2(2,4)-TR1(2,4)));   % Points in y
                     position(3,i) = TR1(3,4) + s(i)*((TR2(3,4)-TR1(3,4)));   % Points in z
-                    theta(1,i) = angles(3);                                 % Roll angle
+                    theta(1,i) = angles(1);                                 % Roll angle
                     theta(2,i) = angles(2);                                 % Pitch angle
-                    theta(3,i) = angles(1);                                 % Yaw angle
+                    theta(3,i) = angles(3);                                 % Yaw angle
                 end
 
 

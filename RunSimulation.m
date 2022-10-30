@@ -10,32 +10,32 @@ paperCornersAll = sp.GetPaperCorners(paperPose);
 [objectCenter,radius] = sp.SpawnSafetySymbol(spawnOn);
 gui = guiTest;
 %preallocate gui variables:
-gui.aubo_q1=0;
-gui.aubo_q2=0;
-gui.aubo_q3=0;
-gui.aubo_q4=0;
-gui.aubo_q5=0;
-gui.aubo_q6=0;
-gui.aubo_start1=1;
-gui.aubo_start2=1;
-gui.aubo_stop=0;
-gui.aubo_x=0;
-gui.aubo_y=0;
-gui.aubo_z=0;
-
-gui.ur_q1=0;
-gui.ur_q2=0;
-gui.ur_q3=0;
-
-gui.ur_q4=0;
-gui.ur_q5=0;
-gui.ur_q6=0;
-gui.ur3_start1=1;
-gui.ur3_start2=1;
-gui.ur3_stop=0;
-gui.ur_x=0;
-gui.ur_y=0;
-gui.ur_z=0;
+% gui.aubo_q1=0;
+% gui.aubo_q2=0;
+% gui.aubo_q3=0;
+% gui.aubo_q4=0;
+% gui.aubo_q5=0;
+% gui.aubo_q6=0;
+% gui.aubo_start1=1;
+% gui.aubo_start2=1;
+% gui.aubo_stop=0;
+% gui.aubo_x=0;
+% gui.aubo_y=0;
+% gui.aubo_z=0;
+% 
+% gui.ur_q1=0;
+% gui.ur_q2=0;
+% gui.ur_q3=0;
+% 
+% gui.ur_q4=0;
+% gui.ur_q5=0;
+% gui.ur_q6=0;
+% gui.ur3_start1=1;
+% gui.ur3_start2=1;
+% gui.ur3_stop=0;
+% gui.ur_x=0;
+% gui.ur_y=0;
+% gui.ur_z=0;
 
 %% Start Spray Painting
 sp.MovetoPaperAuboi3Sim(auboi3Robot, paperPose, paperModel, gui); 
