@@ -541,11 +541,22 @@ classdef SprayPaintingBots
                     end
                     movementStart = tic;
                     for i = 1:steps
-                        if gui.ur3_stop 
-                            auboi3Robot.animate(auboi3Robot.getpos());
+                        if gui.ur3_stop
+                            ur3Robot.animate(ur3Robot.getpos());
                             gui.ur3_stop = 1;
-                            while gui.aubo_stop
+                            TR=ur3Robot.fkine(ur3Robot.getpos());
+                            gui.ur_x = TR(1,4);
+                            gui.ur_y = TR(2,4);
+                            gui.ur_z = TR(3,4);
+                            while gui.ur3_stop
+                                pause(0.5)
                                 VisualServo(obj,ur3Robot,gui.ur3_stop,gui.ur_x,gui.ur_y,gui.ur_z,gui.ur_q1,gui.ur_q2,gui.ur_q3,gui.ur_q4,gui.ur_q5,gui.ur_q6);
+                                q1 = ur3Robot.getpos();
+                                q2 = ur3Robot.ikcon(TR2, q1);
+                                for k = 1:steps
+                                    qMatrix(k,:) = (1-s(k))*q1 + s(k)*q2;
+                                end
+                                i=1;
                             end
                         else
                             ur3Robot.animate(qMatrix(i,:));
@@ -567,16 +578,27 @@ classdef SprayPaintingBots
                 
                 movementStart = tic;
                 for i = 1:steps
-                    if gui.ur3_stop 
-                        auboi3Robot.animate(auboi3Robot.getpos());
+                    if gui.ur3_stop
+                        ur3Robot.animate(ur3Robot.getpos());
                         gui.ur3_stop = 1;
-                        while gui.aubo_stop
+                        TR=ur3Robot.fkine(ur3Robot.getpos());
+                        gui.ur_x = TR(1,4);
+                        gui.ur_y = TR(2,4);
+                        gui.ur_z = TR(3,4);
+                        while gui.ur3_stop
+                            pause(0.5)
                             VisualServo(obj,ur3Robot,gui.ur3_stop,gui.ur_x,gui.ur_y,gui.ur_z,gui.ur_q1,gui.ur_q2,gui.ur_q3,gui.ur_q4,gui.ur_q5,gui.ur_q6);
+                            q1 = ur3Robot.getpos();
+                            q2 = ur3Robot.ikcon(TR2, q1);
+                            for k = 1:steps
+                                qMatrix(k,:) = (1-s(k))*q1 + s(k)*q2;
+                            end
+                            i=1;
                         end
                     else
                         ur3Robot.animate(qMatrix(i,:));
                         pause(0.1);
-%                         [gui.aubo_stop, gui.ur3_stop] = CollisionCheck(obj,auboi3Robot,objectCenter,radius);
+                        % [gui.aubo_stop, gui.ur3_stop] = CollisionCheck(obj,auboi3Robot,objectCenter,radius);
                     end
                 end
                 movementDuration(:,j+1) = toc(movementStart);
