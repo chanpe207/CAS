@@ -22,3 +22,8 @@ gui = guiTest;
 sp.MovetoPaperAuboi3Sim(auboi3Robot, paperPose, paperModel, gui, objectCenter, radius); 
 [nextJointState_123456, movementDuration] = sp.SprayPaintUR3Sim(ur3Robot, paperCornersAll, 0, gui,objectCenter,radius);
 sp.PutDownPaperAuboi3Sim(auboi3Robot, paperModel, gui,objectCenter,radius);
+
+%% Run real UR3
+close all;
+clf;
+sp.StartRealUR3
